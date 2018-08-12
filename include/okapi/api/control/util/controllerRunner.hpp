@@ -38,7 +38,8 @@ class ControllerRunner {
    * @param ioutput the output to write to
    * @return the error when settled
    */
-  virtual double runUntilSettled(const double itarget, IterativeController &icontroller,
+  virtual double runUntilSettled(const double itarget,
+                                 IterativeController &icontroller,
                                  ControllerOutput &ioutput);
 
   /**
@@ -58,7 +59,8 @@ class ControllerRunner {
    * @param ioutput the output to write to
    * @return the error when settled
    */
-  virtual double runUntilAtTarget(const double itarget, IterativeController &icontroller,
+  virtual double runUntilAtTarget(const double itarget,
+                                  IterativeController &icontroller,
                                   ControllerOutput &ioutput);
 
   protected:

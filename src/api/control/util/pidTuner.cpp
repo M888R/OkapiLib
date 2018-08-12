@@ -14,10 +14,20 @@
 
 namespace okapi {
 PIDTuner::PIDTuner(std::shared_ptr<ControllerInput> iinput,
-                   std::shared_ptr<ControllerOutput> ioutput, const TimeUtil &itimeUtil,
-                   QTime itimeout, std::int32_t igoal, double ikPMin, double ikPMax, double ikIMin,
-                   double ikIMax, double ikDMin, double ikDMax, std::int32_t inumIterations,
-                   std::int32_t inumParticles, double ikSettle, double ikITAE)
+                   std::shared_ptr<ControllerOutput> ioutput,
+                   const TimeUtil &itimeUtil,
+                   QTime itimeout,
+                   std::int32_t igoal,
+                   double ikPMin,
+                   double ikPMax,
+                   double ikIMin,
+                   double ikIMax,
+                   double ikDMin,
+                   double ikDMax,
+                   std::int32_t inumIterations,
+                   std::int32_t inumParticles,
+                   double ikSettle,
+                   double ikITAE)
   : input(iinput),
     output(ioutput),
     timeUtil(itimeUtil),

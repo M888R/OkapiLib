@@ -57,9 +57,11 @@ TEST_F(IterativeControllerTest, IterativePosPIDControllerTest) {
 
 TEST_F(IterativeControllerTest, IterativeVelPIDController) {
   IterativeVelPIDController controller(
-    0.000015, 0, 0,
-    std::make_unique<VelMath>(1800, std::make_shared<PassthroughFilter>(),
-                              std::make_unique<ConstantMockTimer>(10_ms)),
+    0.000015,
+    0,
+    0,
+    std::make_unique<VelMath>(
+      1800, std::make_shared<PassthroughFilter>(), std::make_unique<ConstantMockTimer>(10_ms)),
     createTimeUtil(Supplier<std::unique_ptr<AbstractTimer>>(
       []() { return std::make_unique<ConstantMockTimer>(10_ms); })));
 
@@ -71,9 +73,11 @@ TEST_F(IterativeControllerTest, IterativeVelPIDController) {
 
 TEST_F(IterativeControllerTest, IterativeVelPIDControllerFeedForwardOnly) {
   IterativeVelPIDController controller(
-    0, 0, 0.1,
-    std::make_unique<VelMath>(1800, std::make_shared<PassthroughFilter>(),
-                              std::make_unique<ConstantMockTimer>(10_ms)),
+    0,
+    0,
+    0.1,
+    std::make_unique<VelMath>(
+      1800, std::make_shared<PassthroughFilter>(), std::make_unique<ConstantMockTimer>(10_ms)),
     createTimeUtil(Supplier<std::unique_ptr<AbstractTimer>>(
       []() { return std::make_unique<ConstantMockTimer>(10_ms); })));
 
@@ -89,8 +93,11 @@ TEST_F(IterativeControllerTest, IterativeMotorVelocityController) {
     public:
     MockIterativeVelPIDController()
       : IterativeVelPIDController(
-          0, 0, 0,
-          std::make_unique<VelMath>(imev5TPR, std::make_shared<AverageFilter<2>>(),
+          0,
+          0,
+          0,
+          std::make_unique<VelMath>(imev5TPR,
+                                    std::make_shared<AverageFilter<2>>(),
                                     std::make_unique<ConstantMockTimer>(10_ms)),
           createTimeUtil(Supplier<std::unique_ptr<AbstractTimer>>(
             []() { return std::make_unique<ConstantMockTimer>(10_ms); }))) {
@@ -163,15 +170,15 @@ class AsyncControllerTest : public ::testing::Test {
 
 TEST_F(AsyncControllerTest, AsyncPosIntegratedController) {
   auto motor = std::make_shared<MockMotor>();
-  assertControllerFollowsDisableLifecycle(AsyncPosIntegratedController(motor, createTimeUtil()),
-                                          motor->lastPosition, motor->lastVoltage);
+  assertControllerFollowsDisableLifecycle(
+    AsyncPosIntegratedController(motor, createTimeUtil()), motor->lastPosition, motor->lastVoltage);
   assertControllerFollowsTargetLifecycle(AsyncPosIntegratedController(motor, createTimeUtil()));
 }
 
 TEST_F(AsyncControllerTest, AsyncVelIntegratedController) {
   auto motor = std::make_shared<MockMotor>();
-  assertControllerFollowsDisableLifecycle(AsyncVelIntegratedController(motor, createTimeUtil()),
-                                          motor->lastVelocity, motor->lastVoltage);
+  assertControllerFollowsDisableLifecycle(
+    AsyncVelIntegratedController(motor, createTimeUtil()), motor->lastVelocity, motor->lastVoltage);
   assertControllerFollowsTargetLifecycle(AsyncVelIntegratedController(motor, createTimeUtil()));
 }
 

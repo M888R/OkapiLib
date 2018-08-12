@@ -12,8 +12,10 @@
 #include <cmath>
 
 namespace okapi {
-IterativePosPIDControllerArgs::IterativePosPIDControllerArgs(const double ikP, const double ikI,
-                                                             const double ikD, const double ikBias)
+IterativePosPIDControllerArgs::IterativePosPIDControllerArgs(const double ikP,
+                                                             const double ikI,
+                                                             const double ikD,
+                                                             const double ikBias)
   : kP(ikP), kI(ikI), kD(ikD), kBias(ikBias) {
 }
 
@@ -22,8 +24,10 @@ IterativePosPIDController::IterativePosPIDController(const IterativePosPIDContro
   : IterativePosPIDController(params.kP, params.kI, params.kD, params.kBias, itimeUtil) {
 }
 
-IterativePosPIDController::IterativePosPIDController(const double ikP, const double ikI,
-                                                     const double ikD, const double ikBias,
+IterativePosPIDController::IterativePosPIDController(const double ikP,
+                                                     const double ikI,
+                                                     const double ikD,
+                                                     const double ikBias,
                                                      const TimeUtil &itimeUtil)
   : loopDtTimer(std::move(itimeUtil.getTimer())),
     settledUtil(std::move(itimeUtil.getSettledUtil())) {
@@ -135,7 +139,9 @@ double IterativePosPIDController::step(const double inewReading) {
   return output;
 }
 
-void IterativePosPIDController::setGains(const double ikP, const double ikI, const double ikD,
+void IterativePosPIDController::setGains(const double ikP,
+                                         const double ikI,
+                                         const double ikD,
                                          const double ikBias) {
   const double sampleTimeSec = sampleTime.convert(second);
   kP = ikP;

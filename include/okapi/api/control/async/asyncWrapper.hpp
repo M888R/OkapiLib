@@ -33,7 +33,8 @@ class AsyncWrapper : virtual public AsyncController {
    * @param isettledUtil used in waitUntilSettled
    * @param iscale the scale applied to the controller output
    */
-  AsyncWrapper(std::shared_ptr<ControllerInput> iinput, std::shared_ptr<ControllerOutput> ioutput,
+  AsyncWrapper(std::shared_ptr<ControllerInput> iinput,
+               std::shared_ptr<ControllerOutput> ioutput,
                std::unique_ptr<IterativeController> icontroller,
                const Supplier<std::unique_ptr<AbstractRate>> &irateSupplier,
                std::unique_ptr<SettledUtil> isettledUtil);

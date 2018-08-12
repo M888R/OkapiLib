@@ -11,12 +11,16 @@
 namespace okapi {
 AsyncVelPIDController::AsyncVelPIDController(std::shared_ptr<ControllerInput> iinput,
                                              std::shared_ptr<ControllerOutput> ioutput,
-                                             const TimeUtil &itimeUtil, const double ikP,
-                                             const double ikD, const double ikF,
+                                             const TimeUtil &itimeUtil,
+                                             const double ikP,
+                                             const double ikD,
+                                             const double ikF,
                                              std::unique_ptr<VelMath> ivelMath)
   : AsyncWrapper(
-      iinput, ioutput,
+      iinput,
+      ioutput,
       std::make_unique<IterativeVelPIDController>(ikP, ikD, ikF, std::move(ivelMath), itimeUtil),
-      itimeUtil.getRateSupplier(), itimeUtil.getSettledUtil()) {
+      itimeUtil.getRateSupplier(),
+      itimeUtil.getSettledUtil()) {
 }
 } // namespace okapi

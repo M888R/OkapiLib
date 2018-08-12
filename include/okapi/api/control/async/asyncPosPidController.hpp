@@ -20,8 +20,12 @@ namespace okapi {
 class AsyncPosPIDController : public AsyncWrapper, public AsyncPositionController {
   public:
   AsyncPosPIDController(std::shared_ptr<ControllerInput> iinput,
-                        std::shared_ptr<ControllerOutput> ioutput, const TimeUtil &itimeUtil,
-                        double ikP, double ikI, double ikD, double ikBias = 0);
+                        std::shared_ptr<ControllerOutput> ioutput,
+                        const TimeUtil &itimeUtil,
+                        double ikP,
+                        double ikI,
+                        double ikD,
+                        double ikBias = 0);
 };
 } // namespace okapi
 

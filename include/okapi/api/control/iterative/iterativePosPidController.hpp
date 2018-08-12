@@ -28,7 +28,10 @@ class IterativePosPIDController : public IterativePositionController {
   /**
    * Position PID controller.
    */
-  IterativePosPIDController(double ikP, double ikI, double ikD, double ikBias,
+  IterativePosPIDController(double ikP,
+                            double ikI,
+                            double ikD,
+                            double ikBias,
                             const TimeUtil &itimeUtil);
 
   /**

@@ -28,7 +28,8 @@ class ChassisControllerPID : public virtual ChassisController {
    * @param igearset motor internal gearset and gear ratio
    * @param iscales see ChassisScales docs
    */
-  ChassisControllerPID(const TimeUtil &itimeUtil, std::unique_ptr<ChassisModel> imodel,
+  ChassisControllerPID(const TimeUtil &itimeUtil,
+                       std::unique_ptr<ChassisModel> imodel,
                        const IterativePosPIDControllerArgs &idistanceArgs,
                        const IterativePosPIDControllerArgs &iangleArgs,
                        AbstractMotor::GearsetRatioPair igearset = AbstractMotor::gearset::red,
@@ -44,7 +45,8 @@ class ChassisControllerPID : public virtual ChassisController {
    * @param igearset motor internal gearset and gear ratio
    * @param iscales see ChassisScales docs
    */
-  ChassisControllerPID(const TimeUtil &itimeUtil, std::unique_ptr<ChassisModel> imodel,
+  ChassisControllerPID(const TimeUtil &itimeUtil,
+                       std::unique_ptr<ChassisModel> imodel,
                        std::unique_ptr<IterativePosPIDController> idistanceController,
                        std::unique_ptr<IterativePosPIDController> iangleController,
                        AbstractMotor::GearsetRatioPair igearset = AbstractMotor::gearset::red,

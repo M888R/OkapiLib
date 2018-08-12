@@ -231,8 +231,8 @@ void MockRate::delayUntil(uint32_t ims) {
 std::unique_ptr<SettledUtil> createSettledUtilPtr(const double iatTargetError,
                                                   const double iatTargetDerivative,
                                                   const QTime iatTargetTime) {
-  return std::make_unique<SettledUtil>(std::make_unique<MockTimer>(), iatTargetError,
-                                       iatTargetDerivative, iatTargetTime);
+  return std::make_unique<SettledUtil>(
+    std::make_unique<MockTimer>(), iatTargetError, iatTargetDerivative, iatTargetTime);
 }
 
 TimeUtil createTimeUtil() {
@@ -243,10 +243,10 @@ TimeUtil createTimeUtil() {
 }
 
 TimeUtil createTimeUtil(const Supplier<std::unique_ptr<AbstractTimer>> &itimerSupplier) {
-  return TimeUtil(itimerSupplier, Supplier<std::unique_ptr<AbstractRate>>([]() {
-                    return std::make_unique<MockRate>();
-                  }),
-                  Supplier<std::unique_ptr<SettledUtil>>([]() { return createSettledUtilPtr(); }));
+  return TimeUtil(
+    itimerSupplier,
+    Supplier<std::unique_ptr<AbstractRate>>([]() { return std::make_unique<MockRate>(); }),
+    Supplier<std::unique_ptr<SettledUtil>>([]() { return createSettledUtilPtr(); }));
 }
 
 SimulatedSystem::SimulatedSystem(FlywheelSimulator &simulator)

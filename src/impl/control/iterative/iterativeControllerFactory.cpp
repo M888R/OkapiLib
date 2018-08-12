@@ -10,21 +10,26 @@
 #include "okapi/impl/util/timeUtilFactory.hpp"
 
 namespace okapi {
-IterativePosPIDController IterativeControllerFactory::posPID(const double ikP, const double ikI,
+IterativePosPIDController IterativeControllerFactory::posPID(const double ikP,
+                                                             const double ikI,
                                                              const double ikD,
                                                              const double ikBias) {
   return IterativePosPIDController(ikP, ikI, ikD, ikBias, TimeUtilFactory::create());
 }
 
-IterativeVelPIDController IterativeControllerFactory::velPID(const double ikP, const double ikD,
+IterativeVelPIDController IterativeControllerFactory::velPID(const double ikP,
+                                                             const double ikD,
                                                              const double ikF,
                                                              const VelMathArgs &iparams) {
-  return IterativeVelPIDController(ikP, ikD, ikF, VelMathFactory::createPtr(iparams),
-                                   TimeUtilFactory::create());
+  return IterativeVelPIDController(
+    ikP, ikD, ikF, VelMathFactory::createPtr(iparams), TimeUtilFactory::create());
 }
 
 IterativeMotorVelocityController
-IterativeControllerFactory::motorVelocity(Motor imotor, double ikP, double ikD, double ikF,
+IterativeControllerFactory::motorVelocity(Motor imotor,
+                                          double ikP,
+                                          double ikD,
+                                          double ikF,
                                           const VelMathArgs &iparams) {
   return IterativeMotorVelocityController(
     std::make_shared<Motor>(imotor),
@@ -32,7 +37,10 @@ IterativeControllerFactory::motorVelocity(Motor imotor, double ikP, double ikD, 
 }
 
 IterativeMotorVelocityController
-IterativeControllerFactory::motorVelocity(MotorGroup imotor, double ikP, double ikD, double ikF,
+IterativeControllerFactory::motorVelocity(MotorGroup imotor,
+                                          double ikP,
+                                          double ikD,
+                                          double ikF,
                                           const VelMathArgs &iparams) {
   return IterativeMotorVelocityController(
     std::make_shared<MotorGroup>(imotor),
@@ -40,12 +48,14 @@ IterativeControllerFactory::motorVelocity(MotorGroup imotor, double ikP, double 
 }
 
 IterativeMotorVelocityController IterativeControllerFactory::motorVelocity(
-  Motor imotor, std::shared_ptr<IterativeVelocityController> icontroller) {
+  Motor imotor,
+  std::shared_ptr<IterativeVelocityController> icontroller) {
   return IterativeMotorVelocityController(std::make_shared<Motor>(imotor), icontroller);
 }
 
 IterativeMotorVelocityController IterativeControllerFactory::motorVelocity(
-  MotorGroup imotor, std::shared_ptr<IterativeVelocityController> icontroller) {
+  MotorGroup imotor,
+  std::shared_ptr<IterativeVelocityController> icontroller) {
   return IterativeMotorVelocityController(std::make_shared<MotorGroup>(imotor), icontroller);
 }
 } // namespace okapi

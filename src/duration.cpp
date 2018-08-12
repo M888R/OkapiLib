@@ -32,23 +32,19 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <math.h>
 #include "ros_lib/ros/duration.h"
+#include <math.h>
 
-namespace ros
-{
-void normalizeSecNSecSigned(int32_t &sec, int32_t &nsec)
-{
+namespace ros {
+void normalizeSecNSecSigned(int32_t &sec, int32_t &nsec) {
   int32_t nsec_part = nsec;
   int32_t sec_part = sec;
 
-  while (nsec_part > 1000000000L)
-  {
+  while (nsec_part > 1000000000L) {
     nsec_part -= 1000000000L;
     ++sec_part;
   }
-  while (nsec_part < 0)
-  {
+  while (nsec_part < 0) {
     nsec_part += 1000000000L;
     --sec_part;
   }
@@ -56,28 +52,25 @@ void normalizeSecNSecSigned(int32_t &sec, int32_t &nsec)
   nsec = nsec_part;
 }
 
-Duration& Duration::operator+=(const Duration &rhs)
-{
+Duration &Duration::operator+=(const Duration &rhs) {
   sec += rhs.sec;
   nsec += rhs.nsec;
   normalizeSecNSecSigned(sec, nsec);
   return *this;
 }
 
-Duration& Duration::operator-=(const Duration &rhs)
-{
+Duration &Duration::operator-=(const Duration &rhs) {
   sec += -rhs.sec;
   nsec += -rhs.nsec;
   normalizeSecNSecSigned(sec, nsec);
   return *this;
 }
 
-Duration& Duration::operator*=(double scale)
-{
+Duration &Duration::operator*=(double scale) {
   sec *= scale;
   nsec *= scale;
   normalizeSecNSecSigned(sec, nsec);
   return *this;
 }
 
-}
+} // namespace ros

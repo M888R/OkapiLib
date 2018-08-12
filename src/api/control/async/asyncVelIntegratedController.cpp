@@ -22,7 +22,8 @@ AsyncVelIntegratedController::AsyncVelIntegratedController(std::shared_ptr<Abstr
 }
 
 AsyncVelIntegratedController::AsyncVelIntegratedController(
-  const AsyncVelIntegratedControllerArgs &iparams, const TimeUtil &itimeUtil)
+  const AsyncVelIntegratedControllerArgs &iparams,
+  const TimeUtil &itimeUtil)
   : motor(iparams.motor),
     settledUtil(std::move(itimeUtil.getSettledUtil())),
     rate(std::move(itimeUtil.getRate())) {

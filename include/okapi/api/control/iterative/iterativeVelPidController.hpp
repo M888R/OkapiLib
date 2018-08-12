@@ -19,7 +19,10 @@ class IterativeVelPIDController : public IterativeVelocityController {
   /**
    * Velocity PD controller.
    */
-  IterativeVelPIDController(double ikP, double ikD, double ikF, std::unique_ptr<VelMath> ivelMath,
+  IterativeVelPIDController(double ikP,
+                            double ikD,
+                            double ikF,
+                            std::unique_ptr<VelMath> ivelMath,
                             const TimeUtil &itimeUtil);
 
   /**

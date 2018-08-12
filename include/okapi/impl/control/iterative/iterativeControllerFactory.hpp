@@ -35,7 +35,9 @@ class IterativeControllerFactory {
    * @param ikD derivative gain
    * @param ikF feed-forward gain
    */
-  static IterativeVelPIDController velPID(double ikP, double ikD, double ikF = 0,
+  static IterativeVelPIDController velPID(double ikP,
+                                          double ikD,
+                                          double ikF = 0,
                                           const VelMathArgs &iparams = VelMathArgs(imev5TPR));
 
   /**
@@ -47,7 +49,10 @@ class IterativeControllerFactory {
    * @param ikF feed-forward gain
    */
   static IterativeMotorVelocityController
-  motorVelocity(Motor imotor, double ikP, double ikD, double ikF = 0,
+  motorVelocity(Motor imotor,
+                double ikP,
+                double ikD,
+                double ikF = 0,
                 const VelMathArgs &iparams = VelMathArgs(imev5TPR));
 
   /**
@@ -59,7 +64,10 @@ class IterativeControllerFactory {
    * @param ikF feed-forward gain
    */
   static IterativeMotorVelocityController
-  motorVelocity(MotorGroup imotor, double ikP, double ikD, double ikF = 0,
+  motorVelocity(MotorGroup imotor,
+                double ikP,
+                double ikD,
+                double ikF = 0,
                 const VelMathArgs &iparams = VelMathArgs(imev5TPR));
 
   /**

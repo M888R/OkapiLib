@@ -22,7 +22,8 @@ AsyncPosIntegratedController::AsyncPosIntegratedController(std::shared_ptr<Abstr
 }
 
 AsyncPosIntegratedController::AsyncPosIntegratedController(
-  const AsyncPosIntegratedControllerArgs &iparams, const TimeUtil &itimeUtil)
+  const AsyncPosIntegratedControllerArgs &iparams,
+  const TimeUtil &itimeUtil)
   : motor(iparams.motor),
     settledUtil(std::move(itimeUtil.getSettledUtil())),
     rate(std::move(itimeUtil.getRate())) {

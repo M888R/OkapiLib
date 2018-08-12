@@ -20,8 +20,12 @@ namespace okapi {
 class AsyncVelPIDController : public AsyncWrapper, public AsyncVelocityController {
   public:
   AsyncVelPIDController(std::shared_ptr<ControllerInput> iinput,
-                        std::shared_ptr<ControllerOutput> ioutput, const TimeUtil &itimeUtil,
-                        double ikP, double ikD, double ikF, std::unique_ptr<VelMath> ivelMath);
+                        std::shared_ptr<ControllerOutput> ioutput,
+                        const TimeUtil &itimeUtil,
+                        double ikP,
+                        double ikD,
+                        double ikF,
+                        std::unique_ptr<VelMath> ivelMath);
 };
 } // namespace okapi
 

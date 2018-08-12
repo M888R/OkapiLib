@@ -28,7 +28,8 @@ class ChassisControllerFactory {
    * @param iscales see ChassisScales docs
    */
   static ChassisControllerIntegrated
-  create(Motor ileftSideMotor, Motor irightSideMotor,
+  create(Motor ileftSideMotor,
+         Motor irightSideMotor,
          const AbstractMotor::GearsetRatioPair igearset = AbstractMotor::gearset::red,
          const ChassisScales &iscales = ChassisScales({1, 1}));
 
@@ -43,7 +44,8 @@ class ChassisControllerFactory {
    * @param iscales see ChassisScales docs
    */
   static ChassisControllerIntegrated
-  create(MotorGroup ileftSideMotor, MotorGroup irightSideMotor,
+  create(MotorGroup ileftSideMotor,
+         MotorGroup irightSideMotor,
          const AbstractMotor::GearsetRatioPair igearset = AbstractMotor::gearset::red,
          const ChassisScales &iscales = ChassisScales({1, 1}));
 
@@ -60,7 +62,10 @@ class ChassisControllerFactory {
    * @param iscales see ChassisScales docs
    */
   static ChassisControllerIntegrated
-  create(Motor itopLeftMotor, Motor itopRightMotor, Motor ibottomRightMotor, Motor ibottomLeftMotor,
+  create(Motor itopLeftMotor,
+         Motor itopRightMotor,
+         Motor ibottomRightMotor,
+         Motor ibottomLeftMotor,
          const AbstractMotor::GearsetRatioPair igearset = AbstractMotor::gearset::red,
          const ChassisScales &iscales = ChassisScales({1, 1}));
 
@@ -77,7 +82,8 @@ class ChassisControllerFactory {
    * @param iscales see ChassisScales docs
    */
   static ChassisControllerPID
-  create(Motor ileftSideMotor, Motor irightSideMotor,
+  create(Motor ileftSideMotor,
+         Motor irightSideMotor,
          const IterativePosPIDControllerArgs &idistanceArgs,
          const IterativePosPIDControllerArgs &iangleArgs,
          const AbstractMotor::GearsetRatioPair igearset = AbstractMotor::gearset::red,
@@ -96,7 +102,8 @@ class ChassisControllerFactory {
    * @param iscales see ChassisScales docs
    */
   static ChassisControllerPID
-  create(MotorGroup ileftSideMotor, MotorGroup irightSideMotor,
+  create(MotorGroup ileftSideMotor,
+         MotorGroup irightSideMotor,
          const IterativePosPIDControllerArgs &idistanceArgs,
          const IterativePosPIDControllerArgs &iangleArgs,
          const AbstractMotor::GearsetRatioPair igearset = AbstractMotor::gearset::red,
@@ -117,8 +124,11 @@ class ChassisControllerFactory {
    * @param iscales see ChassisScales docs
    */
   static ChassisControllerPID
-  create(MotorGroup ileftSideMotor, MotorGroup irightSideMotor, ADIEncoder ileftEnc,
-         ADIEncoder irightEnc, const IterativePosPIDControllerArgs &idistanceArgs,
+  create(MotorGroup ileftSideMotor,
+         MotorGroup irightSideMotor,
+         ADIEncoder ileftEnc,
+         ADIEncoder irightEnc,
+         const IterativePosPIDControllerArgs &idistanceArgs,
          const IterativePosPIDControllerArgs &iangleArgs,
          const AbstractMotor::GearsetRatioPair igearset = AbstractMotor::gearset::red,
          const ChassisScales &iscales = ChassisScales({1, 1}));
@@ -160,7 +170,10 @@ class ChassisControllerFactory {
    * @param iscales see ChassisScales docs
    */
   static ChassisControllerPID
-  create(Motor itopLeftMotor, Motor itopRightMotor, Motor ibottomRightMotor, Motor ibottomLeftMotor,
+  create(Motor itopLeftMotor,
+         Motor itopRightMotor,
+         Motor ibottomRightMotor,
+         Motor ibottomLeftMotor,
          const IterativePosPIDControllerArgs &idistanceArgs,
          const IterativePosPIDControllerArgs &iangleArgs,
          const AbstractMotor::GearsetRatioPair igearset = AbstractMotor::gearset::red,
@@ -184,8 +197,12 @@ class ChassisControllerFactory {
    * @param iscales see ChassisScales docs
    */
   static ChassisControllerPID
-  create(Motor itopLeftMotor, Motor itopRightMotor, Motor ibottomRightMotor, Motor ibottomLeftMotor,
-         ADIEncoder itopLeftEnc, ADIEncoder itopRightEnc,
+  create(Motor itopLeftMotor,
+         Motor itopRightMotor,
+         Motor ibottomRightMotor,
+         Motor ibottomLeftMotor,
+         ADIEncoder itopLeftEnc,
+         ADIEncoder itopRightEnc,
          const IterativePosPIDControllerArgs &idistanceArgs,
          const IterativePosPIDControllerArgs &iangleArgs,
          const AbstractMotor::GearsetRatioPair igearset = AbstractMotor::gearset::red,

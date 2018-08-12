@@ -24,7 +24,8 @@ double ControllerRunner::runUntilSettled(const double itarget, AsyncController &
   return icontroller.getError();
 }
 
-double ControllerRunner::runUntilSettled(const double itarget, IterativeController &icontroller,
+double ControllerRunner::runUntilSettled(const double itarget,
+                                         IterativeController &icontroller,
                                          ControllerOutput &ioutput) {
   icontroller.setTarget(itarget);
 
@@ -50,7 +51,8 @@ double ControllerRunner::runUntilAtTarget(const double itarget, AsyncController 
   return icontroller.getError();
 }
 
-double ControllerRunner::runUntilAtTarget(const double itarget, IterativeController &icontroller,
+double ControllerRunner::runUntilAtTarget(const double itarget,
+                                          IterativeController &icontroller,
                                           ControllerOutput &ioutput) {
   icontroller.setTarget(itarget);
 
