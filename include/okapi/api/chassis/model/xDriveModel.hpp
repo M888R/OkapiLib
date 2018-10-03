@@ -17,7 +17,7 @@ class XDriveModel : public ChassisModel {
   public:
   /**
    * Model for an x drive (wheels at 45 deg from a skid steer drive). When all motors are powered
-   * +127, the robot should move forward in a straight line.
+   * +100%, the robot should move forward in a straight line.
    *
    * This constructor infers the two sensors from the top left and top right motors (using the
    * integrated encoders).
@@ -31,11 +31,12 @@ class XDriveModel : public ChassisModel {
               std::shared_ptr<AbstractMotor> itopRightMotor,
               std::shared_ptr<AbstractMotor> ibottomRightMotor,
               std::shared_ptr<AbstractMotor> ibottomLeftMotor,
-              double imaxOutput = 127);
+              double imaxVelocity,
+              double imaxVoltage = 12000);
 
   /**
    * Model for an x drive (wheels at 45 deg from a skid steer drive). When all motors are powered
-   * +127, the robot should move forward in a straight line.
+   * +100%, the robot should move forward in a straight line.
    *
    * @param itopLeftMotor top left motor
    * @param itopRightMotor top right motor
@@ -50,7 +51,8 @@ class XDriveModel : public ChassisModel {
               std::shared_ptr<AbstractMotor> ibottomLeftMotor,
               std::shared_ptr<ContinuousRotarySensor> ileftEnc,
               std::shared_ptr<ContinuousRotarySensor> irightEnc,
-              double imaxOutput = 127);
+              double imaxVelocity,
+              double imaxVoltage = 12000);
 
   /**
    * Drive the robot forwards (using open-loop control). Uses velocity mode.
@@ -62,13 +64,13 @@ class XDriveModel : public ChassisModel {
   /**
    * Drive the robot in an arc (using open-loop control). Uses velocity mode.
    * The algorithm is (approximately):
-   *   leftPower = ySpeed + zRotation
-   *   rightPower = ySpeed - zRotation
+   *   leftPower = forwardSpeed + yaw
+   *   rightPower = forwardSpeed - yaw
    *
-   * @param iySpeed speed on y axis (forward)
-   * @param izRotation speed around z axis (up)
+   * @param iforwardSpeed speed in the forward direction
+   * @param iyaw speed around the vertical axis
    */
-  void driveVector(double iySpeed, double izRotation) const override;
+  void driveVector(double iforwardSpeed, double iyaw) const override;
 
   /**
    * Turn the robot clockwise (using open-loop control). Uses velocity mode.
@@ -94,22 +96,22 @@ class XDriveModel : public ChassisModel {
   /**
    * Drive the robot with an arcade drive layout. Uses voltage mode.
    *
-   * @param iySpeed speed on y axis (forward)
-   * @param izRotation speed around z axis (up)
+   * @param iforwardSpeed speed in the forward direction
+   * @param iyaw speed around the vertical axis
    * @param ithreshold deadband on joystick values
    */
-  void arcade(double iySpeed, double izRotation, double ithreshold = 0) const override;
+  void arcade(double iforwardSpeed, double iyaw, double ithreshold = 0) const override;
 
   /**
    * Drive the robot with an arcade drive layout. Uses voltage mode.
    *
-   * @param izSpeed speed on x axis (right)
-   * @param iySpeed speed on y axis (forward)
-   * @param izRotation speed around z axis (up)
+   * @param irightSpeed speed to the right
+   * @param iforwardSpeed speed in the forward direction
+   * @param iyaw speed around the vertical axis
    * @param ithreshold deadband on joystick values
    */
   virtual void
-  xArcade(double ixSpeed, double iySpeed, double izRotation, double ithreshold = 0) const;
+  xArcade(double irightSpeed, double iforwardSpeed, double iyaw, double ithreshold = 0) const;
 
   /**
    * Power the left side motors. Uses velocity mode.
@@ -159,6 +161,72 @@ class XDriveModel : public ChassisModel {
   void setGearing(AbstractMotor::gearset gearset) const override;
 
   /**
+   * Sets new PID constants.
+   *
+   * @param ikF the feed-forward constant
+   * @param ikP the proportional constant
+   * @param ikI the integral constant
+   * @param ikD the derivative constant
+   * @return 1 if the operation was successful or PROS_ERR if the operation failed, setting errno.
+   */
+  void setPosPID(double ikF, double ikP, double ikI, double ikD) const override;
+
+  /**
+   * Sets new PID constants.
+   *
+   * @param ikF the feed-forward constant
+   * @param ikP the proportional constant
+   * @param ikI the integral constant
+   * @param ikD the derivative constant
+   * @param ifilter a constant used for filtering the profile acceleration
+   * @param ilimit the integral limit
+   * @param ithreshold the threshold for determining if a position movement has reached its goal
+   * @param iloopSpeed the rate at which the PID computation is run (in ms)
+   * @return 1 if the operation was successful or PROS_ERR if the operation failed, setting errno.
+   */
+  void setPosPIDFull(double ikF,
+                     double ikP,
+                     double ikI,
+                     double ikD,
+                     double ifilter,
+                     double ilimit,
+                     double ithreshold,
+                     double iloopSpeed) const override;
+
+  /**
+   * Sets new PID constants.
+   *
+   * @param ikF the feed-forward constant
+   * @param ikP the proportional constant
+   * @param ikI the integral constant
+   * @param ikD the derivative constant
+   * @return 1 if the operation was successful or PROS_ERR if the operation failed, setting errno.
+   */
+  void setVelPID(double ikF, double ikP, double ikI, double ikD) const override;
+
+  /**
+   * Sets new PID constants.
+   *
+   * @param ikF the feed-forward constant
+   * @param ikP the proportional constant
+   * @param ikI the integral constant
+   * @param ikD the derivative constant
+   * @param ifilter a constant used for filtering the profile acceleration
+   * @param ilimit the integral limit
+   * @param ithreshold the threshold for determining if a position movement has reached its goal
+   * @param iloopSpeed the rate at which the PID computation is run (in ms)
+   * @return 1 if the operation was successful or PROS_ERR if the operation failed, setting errno.
+   */
+  void setVelPIDFull(double ikF,
+                     double ikP,
+                     double ikI,
+                     double ikD,
+                     double ifilter,
+                     double ilimit,
+                     double ithreshold,
+                     double iloopSpeed) const override;
+
+  /**
    * Returns the top left motor.
    *
    * @return the top left motor
@@ -193,7 +261,6 @@ class XDriveModel : public ChassisModel {
   std::shared_ptr<AbstractMotor> bottomLeftMotor;
   std::shared_ptr<ContinuousRotarySensor> leftSensor;
   std::shared_ptr<ContinuousRotarySensor> rightSensor;
-  const double maxOutput;
 };
 } // namespace okapi
 

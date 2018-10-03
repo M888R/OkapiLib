@@ -6,6 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 #include "okapi/api/chassis/controller/chassisControllerPid.hpp"
+#include "okapi/api/util/mathUtil.hpp"
 #include <cmath>
 
 namespace okapi {
@@ -17,15 +18,13 @@ ChassisControllerPID::ChassisControllerPID(
   std::unique_ptr<IterativePosPIDController> iturnController,
   const AbstractMotor::GearsetRatioPair igearset,
   const ChassisScales &iscales)
-  : ChassisController(imodel),
+  : ChassisController(imodel, toUnderlyingType(igearset.internalGearset)),
     rate(itimeUtil.getRate()),
     distancePid(std::move(idistanceController)),
     anglePid(std::move(iangleController)),
     turnPid(std::move(iturnController)),
-    gearRatio(igearset.ratio),
-    straightScale(iscales.straight),
-    turnScale(iscales.turn),
-    task(trampoline, this) {
+    scales(iscales),
+    gearsetRatioPair(igearset) {
   if (igearset.ratio == 0) {
     logger->error("ChassisControllerPID: The gear ratio cannot be zero! Check if you are using "
                   "integer division.");
@@ -37,30 +36,43 @@ ChassisControllerPID::ChassisControllerPID(
   setEncoderUnits(AbstractMotor::encoderUnits::degrees);
 }
 
+ChassisControllerPID::ChassisControllerPID(ChassisControllerPID &&other) noexcept
+  : ChassisController(std::move(other.model), other.maxVelocity, other.maxVoltage),
+    logger(other.logger),
+    rate(std::move(other.rate)),
+    distancePid(std::move(other.distancePid)),
+    anglePid(std::move(other.anglePid)),
+    turnPid(std::move(other.turnPid)),
+    scales(other.scales),
+    gearsetRatioPair(other.gearsetRatioPair),
+    doneLooping(other.doneLooping),
+    newMovement(other.newMovement),
+    dtorCalled(other.dtorCalled.load(std::memory_order::memory_order_relaxed)),
+    mode(other.mode),
+    task(other.task) {
+  other.task = nullptr;
+}
+
 ChassisControllerPID::~ChassisControllerPID() {
-  dtorCalled = true;
+  dtorCalled.store(true, std::memory_order::memory_order_relaxed);
+  delete task;
 }
 
 void ChassisControllerPID::loop() {
   auto encStartVals = model->getSensorVals();
   std::valarray<std::int32_t> encVals;
   double distanceElapsed = 0, angleChange = 0;
-  modeType pastMode = distance;
+  modeType pastMode = none;
 
-  while (!dtorCalled) {
+  while (!dtorCalled.load(std::memory_order::memory_order_relaxed)) {
     /**
      * doneLooping is set to false by moveDistanceAsync and turnAngleAsync and then set to true by
      * waitUntilSettled
      */
     if (!doneLooping) {
-      if (mode != pastMode) {
-        logger->debug("ChassisControllerPID: Changed mode");
-
+      if (mode != pastMode || newMovement) {
         encStartVals = model->getSensorVals();
-        distancePid->reset();
-        anglePid->reset();
-        turnPid->reset();
-        model->stop();
+        newMovement = false;
       }
 
       switch (mode) {
@@ -69,14 +81,14 @@ void ChassisControllerPID::loop() {
         distanceElapsed = static_cast<double>((encVals[0] + encVals[1])) / 2.0;
         angleChange = static_cast<double>(encVals[0] - encVals[1]);
         model->driveVector(distancePid->step(distanceElapsed), anglePid->step(angleChange));
-
         break;
+
       case angle:
         encVals = model->getSensorVals() - encStartVals;
         angleChange = static_cast<double>(encVals[0] - encVals[1]);
         model->rotate(turnPid->step(angleChange));
-
         break;
+
       default:
         break;
       }
@@ -105,7 +117,7 @@ void ChassisControllerPID::moveDistanceAsync(const QLength itarget) {
   turnPid->flipDisable(true);
   mode = distance;
 
-  const double newTarget = itarget.convert(meter) * straightScale * gearRatio;
+  const double newTarget = itarget.convert(meter) * scales.straight * gearsetRatioPair.ratio;
 
   logger->info("ChassisControllerPID: moving " + std::to_string(newTarget) + " motor degrees");
 
@@ -113,11 +125,12 @@ void ChassisControllerPID::moveDistanceAsync(const QLength itarget) {
   anglePid->setTarget(0);
 
   doneLooping = false;
+  newMovement = true;
 }
 
 void ChassisControllerPID::moveDistanceAsync(const double itarget) {
   // Divide by straightScale so the final result turns back into motor degrees
-  moveDistanceAsync((itarget / straightScale) * meter);
+  moveDistanceAsync((itarget / scales.straight) * meter);
 }
 
 void ChassisControllerPID::moveDistance(const QLength itarget) {
@@ -127,7 +140,7 @@ void ChassisControllerPID::moveDistance(const QLength itarget) {
 
 void ChassisControllerPID::moveDistance(const double itarget) {
   // Divide by straightScale so the final result turns back into motor degrees
-  moveDistance((itarget / straightScale) * meter);
+  moveDistance((itarget / scales.straight) * meter);
 }
 
 void ChassisControllerPID::turnAngleAsync(const QAngle idegTarget) {
@@ -140,18 +153,19 @@ void ChassisControllerPID::turnAngleAsync(const QAngle idegTarget) {
   anglePid->flipDisable(true);
   mode = angle;
 
-  const double newTarget = idegTarget.convert(degree) * turnScale * gearRatio;
+  const double newTarget = idegTarget.convert(degree) * scales.turn * gearsetRatioPair.ratio;
 
   logger->info("ChassisControllerPID: turning " + std::to_string(newTarget) + " motor degrees");
 
   turnPid->setTarget(newTarget);
 
   doneLooping = false;
+  newMovement = true;
 }
 
 void ChassisControllerPID::turnAngleAsync(const double idegTarget) {
   // Divide by turnScale so the final result turns back into motor degrees
-  turnAngleAsync((idegTarget / turnScale) * degree);
+  turnAngleAsync((idegTarget / scales.turn) * degree);
 }
 
 void ChassisControllerPID::turnAngle(const QAngle idegTarget) {
@@ -161,7 +175,7 @@ void ChassisControllerPID::turnAngle(const QAngle idegTarget) {
 
 void ChassisControllerPID::turnAngle(const double idegTarget) {
   // Divide by turnScale so the final result turns back into motor degrees
-  turnAngle((idegTarget / turnScale) * degree);
+  turnAngle((idegTarget / scales.turn) * degree);
 }
 
 void ChassisControllerPID::waitUntilSettled() {
@@ -172,30 +186,22 @@ void ChassisControllerPID::waitUntilSettled() {
     switch (mode) {
     case distance:
       completelySettled = waitForDistanceSettled();
-
-      // Only disable the controllers and stop if we are totally settled and won't try again
-      if (completelySettled) {
-        stopAfterSettled();
-      }
-
       break;
 
     case angle:
       completelySettled = waitForAngleSettled();
-
-      // Only disable the controllers and stop if we are totally settled and won't try again
-      if (completelySettled) {
-        stopAfterSettled();
-      }
-
       break;
 
     default:
+      completelySettled = true;
       break;
     }
-
-    logger->info("ChassisControllerPID: Done waiting to settle");
   }
+
+  stopAfterSettled();
+  mode = none;
+  doneLooping = true;
+  logger->info("ChassisControllerPID: Done waiting to settle");
 }
 
 /**
@@ -243,27 +249,28 @@ bool ChassisControllerPID::waitForAngleSettled() {
 }
 
 void ChassisControllerPID::stopAfterSettled() {
-  switch (mode) {
-  case distance:
-    doneLooping = true;
-    distancePid->flipDisable(true);
-    anglePid->flipDisable(true);
-    model->stop();
-    break;
-
-  case angle:
-    doneLooping = true;
-    turnPid->flipDisable(true);
-    model->stop();
-    break;
-
-  default:
-    break;
-  }
+  distancePid->flipDisable(true);
+  anglePid->flipDisable(true);
+  turnPid->flipDisable(true);
+  model->stop();
 }
 
 void ChassisControllerPID::stop() {
   stopAfterSettled();
   ChassisController::stop();
+}
+
+void ChassisControllerPID::startThread() {
+  if (!task) {
+    task = new CrossplatformThread(trampoline, this);
+  }
+}
+
+ChassisScales ChassisControllerPID::getChassisScales() const {
+  return scales;
+}
+
+AbstractMotor::GearsetRatioPair ChassisControllerPID::getGearsetRatioPair() const {
+  return gearsetRatioPair;
 }
 } // namespace okapi

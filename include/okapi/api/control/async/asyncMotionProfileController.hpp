@@ -15,6 +15,7 @@
 #include "okapi/api/units/QLength.hpp"
 #include "okapi/api/util/logging.hpp"
 #include "okapi/api/util/timeUtil.hpp"
+#include <atomic>
 #include <map>
 
 extern "C" {
@@ -33,9 +34,9 @@ class AsyncMotionProfileController : public AsyncPositionController<std::string,
   /**
    * An Async Controller which generates and follows 2D motion profiles.
    *
-   * @param imaxVel The maximum possible velocity.
-   * @param imaxAccel The maximum possible acceleration.
-   * @param imaxJerk The maximum possible jerk.
+   * @param imaxVel The maximum possible velocity in m/s.
+   * @param imaxAccel The maximum possible acceleration in m/s/s.
+   * @param imaxJerk The maximum possible jerk in m/s/s/s.
    * @param imodel The chassis model to control.
    * @param iwidth The chassis wheelbase width.
    */
@@ -44,7 +45,10 @@ class AsyncMotionProfileController : public AsyncPositionController<std::string,
                                double imaxAccel,
                                double imaxJerk,
                                std::shared_ptr<ChassisModel> imodel,
-                               QLength iwidth);
+                               const ChassisScales &iscales,
+                               AbstractMotor::GearsetRatioPair ipair);
+
+  AsyncMotionProfileController(AsyncMotionProfileController &&other) noexcept;
 
   ~AsyncMotionProfileController() override;
 
@@ -53,12 +57,27 @@ class AsyncMotionProfileController : public AsyncPositionController<std::string,
    * pathId. Call executePath() with the same pathId to run it.
    *
    * If the waypoints form a path which is impossible to achieve, an instance of std::runtime_error
-   * is thrown (and an error is logged) which describes the waypoints.
+   * is thrown (and an error is logged) which describes the waypoints. If there are no waypoints,
+   * no path is generated.
    *
    * @param iwaypoints The waypoints to hit on the path.
    * @param ipathId A unique identifier to save the path with.
    */
-  void generatePath(std::initializer_list<Point> iwaypoints, std::string ipathId);
+  void generatePath(std::initializer_list<Point> iwaypoints, const std::string &ipathId);
+
+  /**
+   * Removes a path and frees the memory it used.
+   *
+   * @param ipathId A unique identifier for the path, previously passed to generatePath()
+   */
+  void removePath(const std::string &ipathId);
+
+  /**
+   * Gets the identifiers of all paths saved in this AsyncMotionProfileController.
+   *
+   * @return The identifiers of all paths
+   */
+  std::vector<std::string> getPaths();
 
   /**
    * Executes a path with the given ID. If there is no path matching the ID, the method will
@@ -67,6 +86,19 @@ class AsyncMotionProfileController : public AsyncPositionController<std::string,
    * @param ipathId A unique identifier for the path, previously passed to generatePath().
    */
   void setTarget(std::string ipathId) override;
+
+  /**
+   * Writes the value of the controller output. This method might be automatically called in another
+   * thread by the controller. This just calls setTarget().
+   */
+  void controllerSet(std::string ivalue) override;
+
+  /**
+   * Gets the last set target, or the default target if none was set.
+   *
+   * @return the last target
+   */
+  std::string getTarget() override;
 
   /**
    * Blocks the current task until the controller has settled. This controller is settled when
@@ -122,6 +154,12 @@ class AsyncMotionProfileController : public AsyncPositionController<std::string,
    */
   bool isDisabled() const override;
 
+  /**
+   * Starts the internal thread. This should not be called by normal users. This method is called
+   * by the AsyncControllerFactory when making a new instance of this class.
+   */
+  void startThread();
+
   protected:
   struct TrajectoryPair {
     Segment *left;
@@ -129,20 +167,21 @@ class AsyncMotionProfileController : public AsyncPositionController<std::string,
     int length;
   };
 
+  Logger *logger;
   std::map<std::string, TrajectoryPair> paths{};
   double maxVel{0};
   double maxAccel{0};
   double maxJerk{0};
   std::shared_ptr<ChassisModel> model;
-  QLength width{11_in};
+  ChassisScales scales;
+  AbstractMotor::GearsetRatioPair pair;
   TimeUtil timeUtil;
-  Logger *logger;
 
-  CrossplatformThread task;
-  bool dtorCalled{false};
   std::string currentPath{""};
   bool isRunning{false};
   bool disabled{false};
+  std::atomic_bool dtorCalled{false};
+  CrossplatformThread *task{nullptr};
 
   static void trampoline(void *context);
   void loop();

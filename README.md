@@ -1,7 +1,8 @@
-[![Build Status](https://travis-ci.com/Octogonapus/OkapiLibV5.svg?token=AwtpYxh3gE2zE453sfAs&branch=develop)](https://travis-ci.com/Octogonapus/OkapiLibV5)
-[![codecov](https://codecov.io/gh/Octogonapus/OkapiLibV5/branch/develop/graph/badge.svg?token=BxSrW0XOZ7)](https://codecov.io/gh/Octogonapus/OkapiLibV5)
+[![Build Status](https://travis-ci.org/OkapiLib/OkapiLib.svg?branch=develop)](https://travis-ci.org/OkapiLib/OkapiLib)
+[![codecov](https://codecov.io/gh/OkapiLib/OkapiLib/branch/develop/graph/badge.svg)](https://codecov.io/gh/OkapiLib/OkapiLib)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/28aa44e211bf46d0a8e9bbbd07814acb)](https://app.codacy.com/app/OkapiLib/OkapiLib?utm_source=github.com&utm_medium=referral&utm_content=OkapiLib/OkapiLib&utm_campaign=Badge_Grade_Dashboard)
+[![Github All Releases](https://img.shields.io/github/downloads/OkapiLib/OkapiLib/total.svg)](https://github.com/OkapiLib/OkapiLib/releases)
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
-[![Github All Releases](https://img.shields.io/github/downloads/OkapiLib/OkapiLib/total.svg)](https://github.com/Octogonapus/OkapiLib/releases)
 
 
 # OkapiLib
@@ -13,7 +14,7 @@ Documentation is hosted on the PROS website: [OkapiLib Docs](https://pros.cs.pur
 
 ## Installing
 
-You can use the PROS CLI to install OkapiLib. In your terminal, inside the project you want to install OkapiLib in, run `pros conduct apply okapilib`. Note that in newer (post-beta) versions of PROS 3, Okapilib will be installed by default in new projects.
+You can use the PROS CLI to install OkapiLib. In your terminal, inside the project you want to install OkapiLib in, run `prosv5 conduct apply okapilib`. Note that in newer (post-beta) versions of PROS 3, OkapiLib will be installed by default in new projects.
 
 ## Contributing
 
@@ -21,7 +22,7 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to help contri
 
 ## Versioning
 
-OkapiLib uses [SemVer](semver.org) for versioning. For available versions, see the [tags on this repository](https://github.com/Octogonapus/OkapiLibV5/tags).
+OkapiLib uses [SemVer](semver.org) for versioning. For available versions, see the [tags on this repository](https://github.com/OkapiLib/OkapiLib/tags).
 
 ## License
 

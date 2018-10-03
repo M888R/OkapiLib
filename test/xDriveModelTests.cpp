@@ -5,15 +5,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
-#include "okapi/api/chassis/model/skidSteerModel.hpp"
 #include "okapi/api/chassis/model/xDriveModel.hpp"
-#include "okapi/api/device/motor/abstractMotor.hpp"
-#include "test/crossPlatformTestRunner.hpp"
 #include "test/tests/api/implMocks.hpp"
 #include <gtest/gtest.h>
 
 using namespace okapi;
-using namespace snowhouse;
 
 class XDriveModelTest : public ::testing::Test {
   public:
@@ -103,23 +99,33 @@ TEST_F(XDriveModelTest, LeftHalfPower) {
   assertLeftAndRightMotorsLastVelocity(63, 0);
 }
 
+TEST_F(XDriveModelTest, LeftBoundsInput) {
+  model.left(10);
+  assertLeftAndRightMotorsLastVelocity(127, 0);
+}
+
 TEST_F(XDriveModelTest, RightHalfPower) {
   model.right(0.5);
   assertLeftAndRightMotorsLastVelocity(0, 63);
+}
+
+TEST_F(XDriveModelTest, RightBoundsInput) {
+  model.right(10);
+  assertLeftAndRightMotorsLastVelocity(0, 127);
 }
 
 TEST_F(XDriveModelTest, TankHalfPower) {
   model.tank(0.5, 0.5);
 
   assertAllMotorsLastVelocity(0);
-  assertAllMotorsLastVoltage(63);
+  assertAllMotorsLastVoltage(6000);
 }
 
 TEST_F(XDriveModelTest, TankBoundsInput) {
   model.tank(10, 10);
 
   assertAllMotorsLastVelocity(0);
-  assertAllMotorsLastVoltage(127);
+  assertAllMotorsLastVoltage(12000);
 }
 
 TEST_F(XDriveModelTest, TankThresholds) {
@@ -133,21 +139,21 @@ TEST_F(XDriveModelTest, ArcadeHalfPower) {
   model.arcade(0.5, 0);
 
   assertAllMotorsLastVelocity(0);
-  assertAllMotorsLastVoltage(63);
+  assertAllMotorsLastVoltage(6000);
 }
 
 TEST_F(XDriveModelTest, ArcadeHalfPowerTurn) {
   model.arcade(0, 0.5);
 
   assertAllMotorsLastVelocity(0);
-  assertLeftAndRightMotorsLastVoltage(63, -63);
+  assertLeftAndRightMotorsLastVoltage(6000, -6000);
 }
 
 TEST_F(XDriveModelTest, ArcadeBoundsInput) {
   model.arcade(10, 0);
 
   assertAllMotorsLastVelocity(0);
-  assertAllMotorsLastVoltage(127);
+  assertAllMotorsLastVoltage(12000);
 }
 
 TEST_F(XDriveModelTest, ArcadeThresholds) {
@@ -157,132 +163,148 @@ TEST_F(XDriveModelTest, ArcadeThresholds) {
   assertAllMotorsLastVoltage(0);
 }
 
-class SkidSteerModelTest : public ::testing::Test {
-  public:
-  SkidSteerModelTest() : model(leftMotor, rightMotor, 127) {
-  }
+TEST_F(XDriveModelTest, XArcadeHalfPowerForward) {
+  model.xArcade(0, 0.5, 0);
 
-  void assertAllMotorsLastVelocity(const std::int16_t expectedLastVelocity) const {
-    EXPECT_EQ(leftMotor->lastVelocity, expectedLastVelocity);
-    EXPECT_EQ(rightMotor->lastVelocity, expectedLastVelocity);
-  }
+  assertAllMotorsLastVelocity(0);
+  assertAllMotorsLastVoltage(6000);
+}
 
-  void assertAllMotorsLastVoltage(const std::int16_t expectedLastVoltage) const {
-    EXPECT_EQ(leftMotor->lastVoltage, expectedLastVoltage);
-    EXPECT_EQ(rightMotor->lastVoltage, expectedLastVoltage);
-  }
+TEST_F(XDriveModelTest, XArcadeForwardBoundsInput) {
+  model.xArcade(0, 10, 0);
 
-  void assertLeftAndRightMotorsLastVelocity(const std::int16_t expectedLeftLastVelocity,
-                                            const std::int16_t expectedRightLastVelocity) const {
-    EXPECT_EQ(leftMotor->lastVelocity, expectedLeftLastVelocity);
-    EXPECT_EQ(rightMotor->lastVelocity, expectedRightLastVelocity);
-  }
+  assertAllMotorsLastVelocity(0);
+  assertAllMotorsLastVoltage(12000);
+}
 
-  void assertLeftAndRightMotorsLastVoltage(const std::int16_t expectedLeftLastVoltage,
-                                           const std::int16_t expectedRightLastVoltage) const {
-    EXPECT_EQ(leftMotor->lastVoltage, expectedLeftLastVoltage);
-    EXPECT_EQ(rightMotor->lastVoltage, expectedRightLastVoltage);
-  }
+TEST_F(XDriveModelTest, XArcadeForwardThresholds) {
+  model.xArcade(0, 0.4, 0, 0.5);
 
-  std::shared_ptr<MockMotor> leftMotor = std::make_shared<MockMotor>();
-  std::shared_ptr<MockMotor> rightMotor = std::make_shared<MockMotor>();
-  SkidSteerModel model;
-};
+  assertAllMotorsLastVelocity(0);
+  assertAllMotorsLastVoltage(0);
+}
 
-TEST_F(SkidSteerModelTest, ForwardHalfPower) {
+TEST_F(XDriveModelTest, XArcadeHalfPowerStrafe) {
+  model.xArcade(0.5, 0, 0);
+
+  assertAllMotorsLastVelocity(0);
+  EXPECT_EQ(topLeftMotor->lastVoltage, 6000);
+  EXPECT_EQ(topRightMotor->lastVoltage, -6000);
+  EXPECT_EQ(bottomRightMotor->lastVoltage, 6000);
+  EXPECT_EQ(bottomLeftMotor->lastVoltage, -6000);
+}
+
+TEST_F(XDriveModelTest, XArcadeStrafeBoundsInput) {
+  model.xArcade(10, 0, 0);
+
+  assertAllMotorsLastVelocity(0);
+  EXPECT_EQ(topLeftMotor->lastVoltage, 12000);
+  EXPECT_EQ(topRightMotor->lastVoltage, -12000);
+  EXPECT_EQ(bottomRightMotor->lastVoltage, 12000);
+  EXPECT_EQ(bottomLeftMotor->lastVoltage, -12000);
+}
+
+TEST_F(XDriveModelTest, XArcadeStrafeThresholds) {
+  model.xArcade(0.4, 0, 0, 0.5);
+
+  assertAllMotorsLastVelocity(0);
+  assertAllMotorsLastVoltage(0);
+}
+
+TEST_F(XDriveModelTest, XArcadeTurnBoundsInput) {
+  model.xArcade(0, 0, 10);
+
+  assertAllMotorsLastVelocity(0);
+  assertLeftAndRightMotorsLastVoltage(12000, -12000);
+}
+
+TEST_F(XDriveModelTest, XArcadeTurnHalfPower) {
+  model.xArcade(0, 0, 0.5);
+
+  assertAllMotorsLastVelocity(0);
+  assertLeftAndRightMotorsLastVoltage(6000, -6000);
+}
+
+TEST_F(XDriveModelTest, XArcadeTurnThresholds) {
+  model.xArcade(0, 0, 0.4, 0.5);
+
+  assertAllMotorsLastVelocity(0);
+  assertAllMotorsLastVoltage(0);
+}
+
+TEST_F(XDriveModelTest, XArcadeBoundsInputAllPoweredFull) {
+  model.xArcade(10, 10, 10);
+
+  assertAllMotorsLastVelocity(0);
+  EXPECT_EQ(topLeftMotor->lastVoltage, 12000);
+  EXPECT_EQ(topRightMotor->lastVoltage, -12000);
+  EXPECT_EQ(bottomRightMotor->lastVoltage, 12000);
+  EXPECT_EQ(bottomLeftMotor->lastVoltage, 12000);
+}
+
+TEST_F(XDriveModelTest, XArcadeBoundsInputAllNoTurn) {
+  model.xArcade(10, 10, 0);
+
+  assertAllMotorsLastVelocity(0);
+  EXPECT_EQ(topLeftMotor->lastVoltage, 12000);
+  EXPECT_EQ(topRightMotor->lastVoltage, 0);
+  EXPECT_EQ(bottomRightMotor->lastVoltage, 12000);
+  EXPECT_EQ(bottomLeftMotor->lastVoltage, 0);
+}
+
+TEST_F(XDriveModelTest, XArcadeBoundsInputAllNoForward) {
+  model.xArcade(10, 0, 10);
+
+  assertAllMotorsLastVelocity(0);
+  EXPECT_EQ(topLeftMotor->lastVoltage, 12000);
+  EXPECT_EQ(topRightMotor->lastVoltage, -12000);
+  EXPECT_EQ(bottomRightMotor->lastVoltage, 0);
+  EXPECT_EQ(bottomLeftMotor->lastVoltage, 0);
+}
+
+TEST_F(XDriveModelTest, SetMaxVelocity) {
+  model.setMaxVelocity(2);
   model.forward(0.5);
-  assertAllMotorsLastVelocity(63);
+  assertAllMotorsLastVelocity(1);
 }
 
-TEST_F(SkidSteerModelTest, ForwardBoundsInput) {
-  model.forward(10);
-  assertAllMotorsLastVelocity(127);
-}
-
-TEST_F(SkidSteerModelTest, RotateHalfPower) {
-  model.rotate(0.5);
-  assertLeftAndRightMotorsLastVelocity(63, -63);
-}
-
-TEST_F(SkidSteerModelTest, RotateBoundsInput) {
-  model.rotate(10);
-  assertLeftAndRightMotorsLastVelocity(127, -127);
-}
-
-TEST_F(SkidSteerModelTest, DriveVectorHalfPower) {
-  model.driveVector(0.25, 0.25);
-  assertLeftAndRightMotorsLastVelocity(63, 0);
-}
-
-TEST_F(SkidSteerModelTest, DriveVectorBoundsInput) {
-  model.driveVector(0.9, 0.25);
-  assertLeftAndRightMotorsLastVelocity(127, 71);
-}
-
-TEST_F(SkidSteerModelTest, StopTest) {
-  leftMotor->lastVelocity = 100;
-  rightMotor->lastVelocity = 100;
-
-  model.stop();
-
-  assertAllMotorsLastVelocity(0);
-}
-
-TEST_F(SkidSteerModelTest, LeftHalfPower) {
-  model.left(0.5);
-  assertLeftAndRightMotorsLastVelocity(63, 0);
-}
-
-TEST_F(SkidSteerModelTest, RightHalfPower) {
-  model.right(0.5);
-  assertLeftAndRightMotorsLastVelocity(0, 63);
-}
-
-TEST_F(SkidSteerModelTest, TankHalfPower) {
+TEST_F(XDriveModelTest, SetMaxVoltage) {
+  model.setMaxVoltage(2);
   model.tank(0.5, 0.5);
-
-  assertAllMotorsLastVelocity(0);
-  assertAllMotorsLastVoltage(63);
+  assertAllMotorsLastVoltage(1);
 }
 
-TEST_F(SkidSteerModelTest, TankBoundsInput) {
-  model.tank(10, 10);
-
-  assertAllMotorsLastVelocity(0);
-  assertAllMotorsLastVoltage(127);
+TEST_F(XDriveModelTest, SetGearsetTest) {
+  model.setGearing(AbstractMotor::gearset::green);
+  assertMotorsGearsetEquals(AbstractMotor::gearset::green,
+                            {*topLeftMotor, *topRightMotor, *bottomRightMotor, *bottomLeftMotor});
 }
 
-TEST_F(SkidSteerModelTest, TankThresholds) {
-  model.tank(0.1, 0.1, 0.3);
-
-  assertAllMotorsLastVelocity(0);
-  assertAllMotorsLastVoltage(0);
+TEST_F(XDriveModelTest, SetBrakeModeTest) {
+  model.setBrakeMode(AbstractMotor::brakeMode::hold);
+  assertMotorsBrakeModeEquals(AbstractMotor::brakeMode::hold,
+                              {*topLeftMotor, *topRightMotor, *bottomRightMotor, *bottomLeftMotor});
 }
 
-TEST_F(SkidSteerModelTest, ArcadeHalfPower) {
-  model.arcade(0.5, 0);
-
-  assertAllMotorsLastVelocity(0);
-  assertAllMotorsLastVoltage(63);
+TEST_F(XDriveModelTest, SetEncoderUnitsTest) {
+  model.setEncoderUnits(AbstractMotor::encoderUnits::counts);
+  assertMotorsEncoderUnitsEquals(
+    AbstractMotor::encoderUnits::counts,
+    {*topLeftMotor, *topRightMotor, *bottomRightMotor, *bottomLeftMotor});
 }
 
-TEST_F(SkidSteerModelTest, ArcadeHalfPowerTurn) {
-  model.arcade(0, 0.5);
-
-  assertAllMotorsLastVelocity(0);
-  assertLeftAndRightMotorsLastVoltage(63, -63);
+TEST_F(XDriveModelTest, GetTopLeftMotor) {
+  EXPECT_EQ(model.getTopLeftMotor().get(), topLeftMotor.get());
 }
 
-TEST_F(SkidSteerModelTest, ArcadeBoundsInput) {
-  model.arcade(10, 0);
-
-  assertAllMotorsLastVelocity(0);
-  assertAllMotorsLastVoltage(127);
+TEST_F(XDriveModelTest, GetTopRightMotor) {
+  EXPECT_EQ(model.getTopRightMotor().get(), topRightMotor.get());
 }
 
-TEST_F(SkidSteerModelTest, ArcadeThresholds) {
-  model.arcade(0.2, 0, 0.5);
+TEST_F(XDriveModelTest, GetBottomLeftMotor) {
+  EXPECT_EQ(model.getBottomLeftMotor().get(), bottomLeftMotor.get());
+}
 
-  assertAllMotorsLastVelocity(0);
-  assertAllMotorsLastVoltage(0);
+TEST_F(XDriveModelTest, GetBottomRightMotor) {
+  EXPECT_EQ(model.getBottomRightMotor().get(), bottomRightMotor.get());
 }

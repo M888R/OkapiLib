@@ -8,6 +8,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 #include "okapi/api/control/iterative/iterativePosPidController.hpp"
+#include "okapi/api/util/mathUtil.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -23,7 +24,7 @@ IterativePosPIDController::IterativePosPIDController(const double ikP,
     loopDtTimer(itimeUtil.getTimer()),
     settledUtil(itimeUtil.getSettledUtil()) {
   if (ikI != 0) {
-    setIntegralLimits(-1 / ikI, 1 / ikI);
+    setIntegralLimits(1 / ikI, -1 / ikI);
   }
   setOutputLimits(-1, 1);
   setGains(ikP, ikI, ikD, ikBias);
@@ -45,12 +46,28 @@ void IterativePosPIDController::setTarget(const double itarget) {
   target = itarget;
 }
 
+void IterativePosPIDController::controllerSet(const double ivalue) {
+  target = remapRange(ivalue, -1, 1, outputMin, outputMax);
+}
+
+double IterativePosPIDController::getTarget() {
+  return target;
+}
+
 double IterativePosPIDController::getOutput() const {
-  return output;
+  return isDisabled() ? 0 : output;
+}
+
+double IterativePosPIDController::getMaxOutput() {
+  return outputMax;
+}
+
+double IterativePosPIDController::getMinOutput() {
+  return outputMin;
 }
 
 double IterativePosPIDController::getError() const {
-  return error;
+  return target - lastReading;
 }
 
 bool IterativePosPIDController::isSettled() {
@@ -78,9 +95,6 @@ void IterativePosPIDController::setOutputLimits(double imax, double imin) {
   outputMin = imin;
 
   output = std::clamp(output, outputMin, outputMax);
-
-  // Fix integral
-  setIntegralLimits(imax, imin);
 }
 
 void IterativePosPIDController::setIntegralLimits(double imax, double imin) {
@@ -103,11 +117,15 @@ void IterativePosPIDController::setErrorSumLimits(const double imax, const doubl
 }
 
 double IterativePosPIDController::step(const double inewReading) {
-  if (isOn) {
+  lastReading = inewReading;
+
+  if (controllerIsDisabled) {
+    return 0;
+  } else {
     loopDtTimer->placeHardMark();
 
     if (loopDtTimer->getDtFromHardMark() >= sampleTime) {
-      error = target - inewReading;
+      error = getError();
 
       if ((std::abs(error) < target - errorSumMin && std::abs(error) > target - errorSumMax) ||
           (std::abs(error) > target + errorSumMin && std::abs(error) < target + errorSumMax)) {
@@ -125,14 +143,11 @@ double IterativePosPIDController::step(const double inewReading) {
 
       output = std::clamp(kP * error + integral - kD * derivative + kBias, outputMin, outputMax);
 
-      lastReading = inewReading;
       lastError = error;
       loopDtTimer->clearHardMark(); // Important that we only clear if dt >= sampleTime
 
       settledUtil->isSettled(error);
     }
-  } else {
-    output = 0; // Controller is off so write 0
   }
 
   return output;
@@ -156,6 +171,7 @@ void IterativePosPIDController::reset() {
   lastReading = 0;
   integral = 0;
   output = 0;
+  settledUtil->reset();
 }
 
 void IterativePosPIDController::setIntegratorReset(bool iresetOnZero) {
@@ -163,16 +179,16 @@ void IterativePosPIDController::setIntegratorReset(bool iresetOnZero) {
 }
 
 void IterativePosPIDController::flipDisable() {
-  isOn = !isOn;
+  flipDisable(!controllerIsDisabled);
 }
 
 void IterativePosPIDController::flipDisable(const bool iisDisabled) {
   logger->info("IterativePosPIDController: flipDisable " + std::to_string(iisDisabled));
-  isOn = !iisDisabled;
+  controllerIsDisabled = iisDisabled;
 }
 
 bool IterativePosPIDController::isDisabled() const {
-  return !isOn;
+  return controllerIsDisabled;
 }
 
 QTime IterativePosPIDController::getSampleTime() const {

@@ -6,6 +6,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 #include "okapi/api/control/async/asyncMotionProfileController.hpp"
+#include "okapi/api/units/QAngularSpeed.hpp"
+#include "okapi/api/units/QSpeed.hpp"
+#include "okapi/api/util/mathUtil.hpp"
 #include <numeric>
 
 namespace okapi {
@@ -14,28 +17,49 @@ AsyncMotionProfileController::AsyncMotionProfileController(const TimeUtil &itime
                                                            const double imaxAccel,
                                                            const double imaxJerk,
                                                            std::shared_ptr<ChassisModel> imodel,
-                                                           QLength iwidth)
-  : maxVel(imaxVel),
+                                                           const ChassisScales &iscales,
+                                                           AbstractMotor::GearsetRatioPair ipair)
+  : logger(Logger::instance()),
+    maxVel(imaxVel),
     maxAccel(imaxAccel),
     maxJerk(imaxJerk),
     model(imodel),
-    width(iwidth),
-    timeUtil(itimeUtil),
-    logger(Logger::instance()),
-    task(trampoline, this) {
+    scales(iscales),
+    pair(ipair),
+    timeUtil(itimeUtil) {
+}
+
+AsyncMotionProfileController::AsyncMotionProfileController(
+  AsyncMotionProfileController &&other) noexcept
+  : logger(other.logger),
+    paths(std::move(other.paths)),
+    maxVel(other.maxVel),
+    maxAccel(other.maxAccel),
+    maxJerk(other.maxJerk),
+    model(std::move(other.model)),
+    scales(other.scales),
+    pair(other.pair),
+    timeUtil(std::move(other.timeUtil)),
+    currentPath(std::move(other.currentPath)),
+    isRunning(other.isRunning),
+    disabled(other.disabled),
+    dtorCalled(other.dtorCalled.load(std::memory_order::memory_order_relaxed)),
+    task(other.task) {
 }
 
 AsyncMotionProfileController::~AsyncMotionProfileController() {
-  dtorCalled = true;
+  dtorCalled.store(true, std::memory_order::memory_order_relaxed);
 
   for (auto &path : paths) {
     free(path.second.left);
     free(path.second.right);
   }
+
+  delete task;
 }
 
 void AsyncMotionProfileController::generatePath(std::initializer_list<Point> iwaypoints,
-                                                std::string ipathId) {
+                                                const std::string &ipathId) {
   if (iwaypoints.size() == 0) {
     // No point in generating a path
     logger->warn(
@@ -78,6 +102,15 @@ void AsyncMotionProfileController::generatePath(std::initializer_list<Point> iwa
                       [&](std::string a, Waypoint b) { return a + ", " + pointToString(b); });
 
     logger->error(message);
+
+    if (candidate.laptr) {
+      free(candidate.laptr);
+    }
+
+    if (candidate.saptr) {
+      free(candidate.saptr);
+    }
+
     throw std::runtime_error(message);
   }
 
@@ -90,20 +123,36 @@ void AsyncMotionProfileController::generatePath(std::initializer_list<Point> iwa
   auto *rightTrajectory = (Segment *)malloc(sizeof(Segment) * length);
 
   logger->info("AsyncMotionProfileController: Modifying for tank drive");
-  pathfinder_modify_tank(trajectory, length, leftTrajectory, rightTrajectory, width.convert(meter));
+  pathfinder_modify_tank(
+    trajectory, length, leftTrajectory, rightTrajectory, scales.wheelbaseWidth.convert(meter));
+
   free(trajectory);
 
-  auto oldPath = paths.find(ipathId);
-  if (oldPath != paths.end()) {
-    // Free the old path before overwriting it
-    free(oldPath->second.left);
-    free(oldPath->second.right);
-    paths.erase(ipathId);
-  }
+  // Free the old path before overwriting it
+  removePath(ipathId);
 
   paths.emplace(ipathId, TrajectoryPair{leftTrajectory, rightTrajectory, length});
   logger->info("AsyncMotionProfileController: Completely done generating path");
   logger->info("AsyncMotionProfileController: " + std::to_string(length));
+}
+
+void AsyncMotionProfileController::removePath(const std::string &ipathId) {
+  auto oldPath = paths.find(ipathId);
+  if (oldPath != paths.end()) {
+    free(oldPath->second.left);
+    free(oldPath->second.right);
+    paths.erase(ipathId);
+  }
+}
+
+std::vector<std::string> AsyncMotionProfileController::getPaths() {
+  std::vector<std::string> keys;
+
+  for (const auto &path : paths) {
+    keys.push_back(path.first);
+  }
+
+  return keys;
 }
 
 void AsyncMotionProfileController::setTarget(std::string ipathId) {
@@ -111,11 +160,19 @@ void AsyncMotionProfileController::setTarget(std::string ipathId) {
   isRunning = true;
 }
 
+void AsyncMotionProfileController::controllerSet(std::string ivalue) {
+  setTarget(ivalue);
+}
+
+std::string AsyncMotionProfileController::getTarget() {
+  return currentPath;
+}
+
 void AsyncMotionProfileController::loop() {
   auto rate = timeUtil.getRate();
 
-  while (!dtorCalled) {
-    if (!disabled && isRunning) {
+  while (!dtorCalled.load(std::memory_order::memory_order_relaxed)) {
+    if (isRunning && !isDisabled()) {
       logger->info("AsyncMotionProfileController: Running with path: " + currentPath);
       auto path = paths.find(currentPath);
 
@@ -142,9 +199,17 @@ void AsyncMotionProfileController::loop() {
 
 void AsyncMotionProfileController::executeSinglePath(const TrajectoryPair &path,
                                                      std::unique_ptr<AbstractRate> rate) {
-  for (int i = 0; i < path.length && !disabled; ++i) {
-    model->left(path.left[i].velocity / maxVel);
-    model->right(path.right[i].velocity / maxVel);
+  const auto linearSpeedToRotationalSpeed = [&](QSpeed linearMps) -> QAngularSpeed {
+    return linearMps * (360_deg / (scales.wheelDiameter * 1_pi));
+  };
+
+  for (int i = 0; i < path.length && !isDisabled(); ++i) {
+    const auto leftRPM = linearSpeedToRotationalSpeed(path.left[i].velocity * mps).convert(rpm);
+    const auto rightRPM = linearSpeedToRotationalSpeed(path.right[i].velocity * mps).convert(rpm);
+
+    model->left(leftRPM / toUnderlyingType(pair.internalGearset));
+    model->right(rightRPM / toUnderlyingType(pair.internalGearset));
+
     rate->delayUntil(1_ms);
   }
 }
@@ -159,7 +224,7 @@ void AsyncMotionProfileController::waitUntilSettled() {
   logger->info("AsyncMotionProfileController: Waiting to settle");
 
   auto rate = timeUtil.getRate();
-  while (isRunning) {
+  while (!isSettled()) {
     rate->delayUntil(10_ms);
   }
 
@@ -171,21 +236,39 @@ Point AsyncMotionProfileController::getError() const {
 }
 
 bool AsyncMotionProfileController::isSettled() {
-  return !isRunning;
+  return isDisabled() || !isRunning;
 }
 
 void AsyncMotionProfileController::reset() {
+  // Interrupt executeSinglePath() by disabling the controller
+  flipDisable(true);
+
+  auto rate = timeUtil.getRate();
+  while (isRunning) {
+    rate->delayUntil(1_ms);
+  }
+
+  flipDisable(false);
 }
 
 void AsyncMotionProfileController::flipDisable() {
-  disabled = !disabled;
+  flipDisable(!disabled);
 }
 
-void AsyncMotionProfileController::flipDisable(bool iisDisabled) {
+void AsyncMotionProfileController::flipDisable(const bool iisDisabled) {
+  logger->info("AsyncMotionProfileController: flipDisable " + std::to_string(iisDisabled));
   disabled = iisDisabled;
+  // loop() will stop the chassis when executeSinglePath() is done
+  // the default implementation of executeSinglePath() breaks when disabled
 }
 
 bool AsyncMotionProfileController::isDisabled() const {
   return disabled;
+}
+
+void AsyncMotionProfileController::startThread() {
+  if (!task) {
+    task = new CrossplatformThread(trampoline, this);
+  }
 }
 } // namespace okapi

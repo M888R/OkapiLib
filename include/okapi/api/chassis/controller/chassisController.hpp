@@ -8,6 +8,7 @@
 #ifndef _OKAPI_CHASSISCONTROLLER_HPP_
 #define _OKAPI_CHASSISCONTROLLER_HPP_
 
+#include "okapi/api/chassis/controller/chassisScales.hpp"
 #include "okapi/api/chassis/model/chassisModel.hpp"
 #include "okapi/api/device/motor/abstractMotor.hpp"
 #include "okapi/api/units/QAngle.hpp"
@@ -25,7 +26,9 @@ class ChassisController : public ChassisModel {
    *
    * @param imodel underlying ChassisModel
    */
-  explicit ChassisController(std::shared_ptr<ChassisModel> imodel);
+  explicit ChassisController(std::shared_ptr<ChassisModel> imodel,
+                             double imaxVelocity,
+                             double imaxVoltage = 12000);
 
   ~ChassisController() override;
 
@@ -100,13 +103,13 @@ class ChassisController : public ChassisModel {
   /**
    * Drive the robot in an arc (using open-loop control).
    * The algorithm is (approximately):
-   *   leftPower = ySpeed + zRotation
-   *   rightPower = ySpeed - zRotation
+   *   leftPower = forwardSpeed + yaw
+   *   rightPower = forwardSpeed - yaw
    *
-   * @param iySpeed speed on y axis (forward)
-   * @param izRotation speed around z axis (up)
+   * @param iforwardSpeed speed in the forward direction
+   * @param iyaw speed around the vertical axis
    */
-  void driveVector(double iySpeed, double izRotation) const override;
+  void driveVector(double iforwardSpeed, double iyaw) const override;
 
   /**
    * Turn the robot clockwise (using open-loop control).
@@ -132,11 +135,11 @@ class ChassisController : public ChassisModel {
   /**
    * Drive the robot with an arcade drive layout.
    *
-   * @param iySpeed speed on y axis (forward)
-   * @param izRotation speed around z axis (up)
+   * @param iforwardSpeed speed in the forward direction
+   * @param iyaw speed around the vertical axis
    * @param ithreshold deadband on joystick values
    */
-  void arcade(double iySpeed, double izRotation, double ithreshold = 0) const override;
+  void arcade(double iforwardSpeed, double iyaw, double ithreshold = 0) const override;
 
   /**
    * Power the left side motors.
@@ -186,10 +189,96 @@ class ChassisController : public ChassisModel {
   void setGearing(AbstractMotor::gearset gearset) const override;
 
   /**
+   * Sets new PID constants.
+   *
+   * @param ikF the feed-forward constant
+   * @param ikP the proportional constant
+   * @param ikI the integral constant
+   * @param ikD the derivative constant
+   */
+  void setPosPID(double ikF, double ikP, double ikI, double ikD) const override;
+
+  /**
+   * Sets new PID constants.
+   *
+   * @param ikF the feed-forward constant
+   * @param ikP the proportional constant
+   * @param ikI the integral constant
+   * @param ikD the derivative constant
+   * @param ifilter a constant used for filtering the profile acceleration
+   * @param ilimit the integral limit
+   * @param ithreshold the threshold for determining if a position movement has reached its goal
+   * @param iloopSpeed the rate at which the PID computation is run (in ms)
+   */
+  void setPosPIDFull(double ikF,
+                     double ikP,
+                     double ikI,
+                     double ikD,
+                     double ifilter,
+                     double ilimit,
+                     double ithreshold,
+                     double iloopSpeed) const override;
+
+  /**
+   * Sets new PID constants.
+   *
+   * @param ikF the feed-forward constant
+   * @param ikP the proportional constant
+   * @param ikI the integral constant
+   * @param ikD the derivative constant
+   */
+  void setVelPID(double ikF, double ikP, double ikI, double ikD) const override;
+
+  /**
+   * Sets new PID constants.
+   *
+   * @param ikF the feed-forward constant
+   * @param ikP the proportional constant
+   * @param ikI the integral constant
+   * @param ikD the derivative constant
+   * @param ifilter a constant used for filtering the profile acceleration
+   * @param ilimit the integral limit
+   * @param ithreshold the threshold for determining if a position movement has reached its goal
+   * @param iloopSpeed the rate at which the PID computation is run (in ms)
+   */
+  void setVelPIDFull(double ikF,
+                     double ikP,
+                     double ikI,
+                     double ikD,
+                     double ifilter,
+                     double ilimit,
+                     double ithreshold,
+                     double iloopSpeed) const override;
+
+  /**
+   * Sets a new maximum velocity in RPM [0-600].
+   *
+   * @param imaxVelocity the new maximum velocity
+   */
+  void setMaxVelocity(double imaxVelocity) override;
+
+  /**
+   * Sets a new maximum voltage in mV [0-12000].
+   *
+   * @param imaxVoltage the new maximum voltage
+   */
+  void setMaxVoltage(double imaxVoltage) override;
+
+  /**
    * Get the underlying ChassisModel. This should be used sparingly and carefully because it can
    * result in multiple owners writing to the same set of motors.
    */
   std::shared_ptr<ChassisModel> getChassisModel() const;
+
+  /**
+   * Get the ChassisScales.
+   */
+  virtual ChassisScales getChassisScales() const = 0;
+
+  /**
+   * Get the GearsetRatioPair.
+   */
+  virtual AbstractMotor::GearsetRatioPair getGearsetRatioPair() const = 0;
 
   protected:
   std::shared_ptr<ChassisModel> model;

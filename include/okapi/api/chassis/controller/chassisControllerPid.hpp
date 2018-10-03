@@ -9,11 +9,11 @@
 #define _OKAPI_CHASSISCONTROLLERPID_HPP_
 
 #include "okapi/api/chassis/controller/chassisController.hpp"
-#include "okapi/api/chassis/controller/chassisScales.hpp"
 #include "okapi/api/control/iterative/iterativePosPidController.hpp"
 #include "okapi/api/util/abstractRate.hpp"
 #include "okapi/api/util/logging.hpp"
 #include "okapi/api/util/timeUtil.hpp"
+#include <atomic>
 #include <memory>
 
 namespace okapi {
@@ -36,6 +36,8 @@ class ChassisControllerPID : public virtual ChassisController {
                        std::unique_ptr<IterativePosPIDController> iturnController,
                        AbstractMotor::GearsetRatioPair igearset = AbstractMotor::gearset::red,
                        const ChassisScales &iscales = ChassisScales({1, 1}));
+
+  ChassisControllerPID(ChassisControllerPID &&other) noexcept;
 
   ~ChassisControllerPID() override;
 
@@ -105,18 +107,33 @@ class ChassisControllerPID : public virtual ChassisController {
    */
   void stop() override;
 
+  /**
+   * Starts the internal thread. This should not be called by normal users. This method is called
+   * by the ChassisControllerFactory when making a new instance of this class.
+   */
+  void startThread();
+
+  /**
+   * Get the ChassisScales.
+   */
+  ChassisScales getChassisScales() const override;
+
+  /**
+   * Get the GearsetRatioPair.
+   */
+  AbstractMotor::GearsetRatioPair getGearsetRatioPair() const override;
+
   protected:
   Logger *logger;
   std::unique_ptr<AbstractRate> rate;
   std::unique_ptr<IterativePosPIDController> distancePid;
   std::unique_ptr<IterativePosPIDController> anglePid;
   std::unique_ptr<IterativePosPIDController> turnPid;
-  const double gearRatio;
-  const double straightScale;
-  const double turnScale;
-  CrossplatformThread task;
+  ChassisScales scales;
+  AbstractMotor::GearsetRatioPair gearsetRatioPair;
   bool doneLooping{true};
-  bool dtorCalled{false};
+  bool newMovement{false};
+  std::atomic_bool dtorCalled{false};
 
   static void trampoline(void *context);
   void loop();
@@ -125,8 +142,10 @@ class ChassisControllerPID : public virtual ChassisController {
   bool waitForAngleSettled();
   void stopAfterSettled();
 
-  typedef enum { distance, angle } modeType;
-  modeType mode;
+  typedef enum { distance, angle, none } modeType;
+  modeType mode{none};
+
+  CrossplatformThread *task{nullptr};
 };
 } // namespace okapi
 

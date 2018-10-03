@@ -54,6 +54,7 @@ void IterativeVelPIDController::setOutputLimits(double imax, double imin) {
   outputMax = imax;
   outputMin = imin;
 
+  outputSum = std::clamp(outputSum, outputMin, outputMax);
   output = std::clamp(output, outputMin, outputMax);
 }
 
@@ -62,26 +63,30 @@ QAngularSpeed IterativeVelPIDController::stepVel(const double inewReading) {
 }
 
 double IterativeVelPIDController::step(const double inewReading) {
-  if (isOn) {
+  if (loopDtTimer->getDtFromHardMark() >= sampleTime) {
+    stepVel(inewReading);
+  }
+
+  if (!controllerIsDisabled) {
     loopDtTimer->placeHardMark();
 
     if (loopDtTimer->getDtFromHardMark() >= sampleTime) {
-      stepVel(inewReading);
-      error = target - velMath->getVelocity().convert(rpm);
+      error = getError();
 
       // Derivative over measurement to eliminate derivative kick on setpoint change
       derivative = derivativeFilter->filter(velMath->getAccel().getValue());
 
-      output += kP * error - kD * derivative;
-      output = std::clamp(output, outputMin, outputMax);
+      outputSum += kP * error - kD * derivative;
+      outputSum = std::clamp(outputSum, outputMin, outputMax);
 
       loopDtTimer->clearHardMark(); // Important that we only clear if dt >= sampleTime
 
       settledUtil->isSettled(error);
     }
 
-    return std::clamp(
-      output + kF * target + kSF * std::copysign(1.0, target), outputMin, outputMax);
+    output =
+      std::clamp(outputSum + kF * target + kSF * std::copysign(1.0, target), outputMin, outputMax);
+    return output;
   }
 
   return 0; // Can't set output to zero because the entire loop in an integral
@@ -92,12 +97,28 @@ void IterativeVelPIDController::setTarget(const double itarget) {
   target = itarget;
 }
 
+void IterativeVelPIDController::controllerSet(const double ivalue) {
+  target = remapRange(ivalue, -1, 1, outputMin, outputMax);
+}
+
+double IterativeVelPIDController::getTarget() {
+  return target;
+}
+
 double IterativeVelPIDController::getOutput() const {
-  return isOn ? output : 0;
+  return isDisabled() ? 0 : output;
+}
+
+double IterativeVelPIDController::getMaxOutput() {
+  return outputMax;
+}
+
+double IterativeVelPIDController::getMinOutput() {
+  return outputMin;
 }
 
 double IterativeVelPIDController::getError() const {
-  return error;
+  return target - velMath->getVelocity().convert(rpm);
 }
 
 bool IterativeVelPIDController::isSettled() {
@@ -107,20 +128,22 @@ bool IterativeVelPIDController::isSettled() {
 void IterativeVelPIDController::reset() {
   logger->info("IterativeVelPIDController: Reset");
   error = 0;
+  outputSum = 0;
   output = 0;
+  settledUtil->reset();
 }
 
 void IterativeVelPIDController::flipDisable() {
-  isOn = !isOn;
+  flipDisable(!controllerIsDisabled);
 }
 
 void IterativeVelPIDController::flipDisable(const bool iisDisabled) {
   logger->info("IterativeVelPIDController: flipDisable " + std::to_string(iisDisabled));
-  isOn = !iisDisabled;
+  controllerIsDisabled = iisDisabled;
 }
 
 bool IterativeVelPIDController::isDisabled() const {
-  return !isOn;
+  return controllerIsDisabled;
 }
 
 void IterativeVelPIDController::setTicksPerRev(const double tpr) {

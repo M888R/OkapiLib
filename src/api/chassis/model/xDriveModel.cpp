@@ -1,4 +1,4 @@
-/**impl
+/**
  * @author Ryan Benasutti, WPI
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -15,64 +15,66 @@ XDriveModel::XDriveModel(std::shared_ptr<AbstractMotor> itopLeftMotor,
                          std::shared_ptr<AbstractMotor> ibottomLeftMotor,
                          std::shared_ptr<ContinuousRotarySensor> ileftEnc,
                          std::shared_ptr<ContinuousRotarySensor> irightEnc,
-                         const double imaxOutput)
-  : topLeftMotor(itopLeftMotor),
+                         const double imaxVelocity,
+                         const double imaxVoltage)
+  : ChassisModel::ChassisModel(imaxVelocity, imaxVoltage),
+    topLeftMotor(itopLeftMotor),
     topRightMotor(itopRightMotor),
     bottomRightMotor(ibottomRightMotor),
     bottomLeftMotor(ibottomLeftMotor),
     leftSensor(ileftEnc),
-    rightSensor(irightEnc),
-    maxOutput(imaxOutput) {
+    rightSensor(irightEnc) {
 }
 
 XDriveModel::XDriveModel(std::shared_ptr<AbstractMotor> itopLeftMotor,
                          std::shared_ptr<AbstractMotor> itopRightMotor,
                          std::shared_ptr<AbstractMotor> ibottomRightMotor,
                          std::shared_ptr<AbstractMotor> ibottomLeftMotor,
-                         const double imaxOutput)
-  : topLeftMotor(itopLeftMotor),
+                         const double imaxVelocity,
+                         const double imaxVoltage)
+  : ChassisModel::ChassisModel(imaxVelocity, imaxVoltage),
+    topLeftMotor(itopLeftMotor),
     topRightMotor(itopRightMotor),
     bottomRightMotor(ibottomRightMotor),
     bottomLeftMotor(ibottomLeftMotor),
     leftSensor(itopLeftMotor->getEncoder()),
-    rightSensor(itopRightMotor->getEncoder()),
-    maxOutput(imaxOutput) {
+    rightSensor(itopRightMotor->getEncoder()) {
 }
 
 void XDriveModel::forward(const double ispeed) const {
   const double speed = std::clamp(ispeed, -1.0, 1.0);
-  topLeftMotor->moveVelocity(static_cast<int16_t>(speed * maxOutput));
-  topRightMotor->moveVelocity(static_cast<int16_t>(speed * maxOutput));
-  bottomRightMotor->moveVelocity(static_cast<int16_t>(speed * maxOutput));
-  bottomLeftMotor->moveVelocity(static_cast<int16_t>(speed * maxOutput));
+  topLeftMotor->moveVelocity(static_cast<int16_t>(speed * maxVelocity));
+  topRightMotor->moveVelocity(static_cast<int16_t>(speed * maxVelocity));
+  bottomRightMotor->moveVelocity(static_cast<int16_t>(speed * maxVelocity));
+  bottomLeftMotor->moveVelocity(static_cast<int16_t>(speed * maxVelocity));
 }
 
-void XDriveModel::driveVector(const double iySpeed, const double izRotation) const {
+void XDriveModel::driveVector(const double iforwardSpeed, const double iyaw) const {
   // This code is taken from WPIlib. All credit goes to them. Link:
   // https://github.com/wpilibsuite/allwpilib/blob/master/wpilibc/src/main/native/cpp/Drive/DifferentialDrive.cpp#L73
-  const double ySpeed = std::clamp(iySpeed, -1.0, 1.0);
-  const double zRotation = std::clamp(izRotation, -1.0, 1.0);
+  const double forwardSpeed = std::clamp(iforwardSpeed, -1.0, 1.0);
+  const double yaw = std::clamp(iyaw, -1.0, 1.0);
 
-  double leftOutput = ySpeed + zRotation;
-  double rightOutput = ySpeed - zRotation;
+  double leftOutput = forwardSpeed + yaw;
+  double rightOutput = forwardSpeed - yaw;
   if (const double maxInputMag = std::max<double>(std::abs(leftOutput), std::abs(rightOutput));
       maxInputMag > 1) {
     leftOutput /= maxInputMag;
     rightOutput /= maxInputMag;
   }
 
-  topLeftMotor->moveVelocity(static_cast<int16_t>(leftOutput * maxOutput));
-  topRightMotor->moveVelocity(static_cast<int16_t>(rightOutput * maxOutput));
-  bottomRightMotor->moveVelocity(static_cast<int16_t>(rightOutput * maxOutput));
-  bottomLeftMotor->moveVelocity(static_cast<int16_t>(leftOutput * maxOutput));
+  topLeftMotor->moveVelocity(static_cast<int16_t>(leftOutput * maxVelocity));
+  topRightMotor->moveVelocity(static_cast<int16_t>(rightOutput * maxVelocity));
+  bottomRightMotor->moveVelocity(static_cast<int16_t>(rightOutput * maxVelocity));
+  bottomLeftMotor->moveVelocity(static_cast<int16_t>(leftOutput * maxVelocity));
 }
 
 void XDriveModel::rotate(const double ispeed) const {
   const double speed = std::clamp(ispeed, -1.0, 1.0);
-  topLeftMotor->moveVelocity(static_cast<int16_t>(speed * maxOutput));
-  topRightMotor->moveVelocity(static_cast<int16_t>(-1 * speed * maxOutput));
-  bottomRightMotor->moveVelocity(static_cast<int16_t>(-1 * speed * maxOutput));
-  bottomLeftMotor->moveVelocity(static_cast<int16_t>(speed * maxOutput));
+  topLeftMotor->moveVelocity(static_cast<int16_t>(speed * maxVelocity));
+  topRightMotor->moveVelocity(static_cast<int16_t>(-1 * speed * maxVelocity));
+  bottomRightMotor->moveVelocity(static_cast<int16_t>(-1 * speed * maxVelocity));
+  bottomLeftMotor->moveVelocity(static_cast<int16_t>(speed * maxVelocity));
 }
 
 void XDriveModel::stop() {
@@ -97,91 +99,97 @@ void XDriveModel::tank(const double ileftSpeed,
     rightSpeed = 0;
   }
 
-  topLeftMotor->moveVoltage(static_cast<int16_t>(leftSpeed * maxOutput));
-  topRightMotor->moveVoltage(static_cast<int16_t>(rightSpeed * maxOutput));
-  bottomRightMotor->moveVoltage(static_cast<int16_t>(rightSpeed * maxOutput));
-  bottomLeftMotor->moveVoltage(static_cast<int16_t>(leftSpeed * maxOutput));
+  topLeftMotor->moveVoltage(static_cast<int16_t>(leftSpeed * maxVoltage));
+  topRightMotor->moveVoltage(static_cast<int16_t>(rightSpeed * maxVoltage));
+  bottomRightMotor->moveVoltage(static_cast<int16_t>(rightSpeed * maxVoltage));
+  bottomLeftMotor->moveVoltage(static_cast<int16_t>(leftSpeed * maxVoltage));
 }
 
-void XDriveModel::arcade(const double iySpeed,
-                         const double izRotation,
+void XDriveModel::arcade(const double iforwardSpeed,
+                         const double iyaw,
                          const double ithreshold) const {
   // This code is taken from WPIlib. All credit goes to them. Link:
   // https://github.com/wpilibsuite/allwpilib/blob/master/wpilibc/src/main/native/cpp/Drive/DifferentialDrive.cpp#L73
-  double ySpeed = std::clamp(iySpeed, -1.0, 1.0);
-  if (std::abs(ySpeed) < ithreshold) {
-    ySpeed = 0;
+  double forwardSpeed = std::clamp(iforwardSpeed, -1.0, 1.0);
+  if (std::abs(forwardSpeed) < ithreshold) {
+    forwardSpeed = 0;
   }
 
-  double zRotation = std::clamp(izRotation, -1.0, 1.0);
-  if (std::abs(zRotation) < ithreshold) {
-    zRotation = 0;
+  double yaw = std::clamp(iyaw, -1.0, 1.0);
+  if (std::abs(yaw) < ithreshold) {
+    yaw = 0;
   }
 
-  double maxInput = std::copysign(std::max(std::abs(ySpeed), std::abs(zRotation)), ySpeed);
+  double maxInput = std::copysign(std::max(std::abs(forwardSpeed), std::abs(yaw)), forwardSpeed);
   double leftOutput = 0;
   double rightOutput = 0;
 
-  if (ySpeed >= 0) {
-    if (zRotation >= 0) {
+  if (forwardSpeed >= 0) {
+    if (yaw >= 0) {
       leftOutput = maxInput;
-      rightOutput = ySpeed - zRotation;
+      rightOutput = forwardSpeed - yaw;
     } else {
-      leftOutput = ySpeed + zRotation;
+      leftOutput = forwardSpeed + yaw;
       rightOutput = maxInput;
     }
   } else {
-    if (zRotation >= 0) {
-      leftOutput = ySpeed + zRotation;
+    if (yaw >= 0) {
+      leftOutput = forwardSpeed + yaw;
       rightOutput = maxInput;
     } else {
       leftOutput = maxInput;
-      rightOutput = ySpeed - zRotation;
+      rightOutput = forwardSpeed - yaw;
     }
   }
 
   leftOutput = std::clamp(leftOutput, -1.0, 1.0);
   rightOutput = std::clamp(rightOutput, -1.0, 1.0);
 
-  topLeftMotor->moveVoltage(static_cast<int16_t>(leftOutput * maxOutput));
-  topRightMotor->moveVoltage(static_cast<int16_t>(rightOutput * maxOutput));
-  bottomRightMotor->moveVoltage(static_cast<int16_t>(rightOutput * maxOutput));
-  bottomLeftMotor->moveVoltage(static_cast<int16_t>(leftOutput * maxOutput));
+  topLeftMotor->moveVoltage(static_cast<int16_t>(leftOutput * maxVoltage));
+  topRightMotor->moveVoltage(static_cast<int16_t>(rightOutput * maxVoltage));
+  bottomRightMotor->moveVoltage(static_cast<int16_t>(rightOutput * maxVoltage));
+  bottomLeftMotor->moveVoltage(static_cast<int16_t>(leftOutput * maxVoltage));
 }
 
 void XDriveModel::xArcade(const double ixSpeed,
-                          const double iySpeed,
-                          const double izRotation,
+                          const double iforwardSpeed,
+                          const double iyaw,
                           const double ithreshold) const {
   double xSpeed = std::clamp(ixSpeed, -1.0, 1.0);
   if (std::abs(xSpeed) < ithreshold) {
     xSpeed = 0;
   }
 
-  double ySpeed = std::clamp(iySpeed, -1.0, 1.0);
-  if (std::abs(ySpeed) < ithreshold) {
-    ySpeed = 0;
+  double forwardSpeed = std::clamp(iforwardSpeed, -1.0, 1.0);
+  if (std::abs(forwardSpeed) < ithreshold) {
+    forwardSpeed = 0;
   }
 
-  double zRotation = std::clamp(izRotation, -1.0, 1.0);
-  if (std::abs(zRotation) < ithreshold) {
-    zRotation = 0;
+  double yaw = std::clamp(iyaw, -1.0, 1.0);
+  if (std::abs(yaw) < ithreshold) {
+    yaw = 0;
   }
 
-  topLeftMotor->moveVoltage(static_cast<int16_t>(ySpeed + xSpeed + zRotation));
-  topRightMotor->moveVoltage(static_cast<int16_t>(ySpeed - xSpeed - zRotation));
-  bottomRightMotor->moveVoltage(static_cast<int16_t>(ySpeed + xSpeed - zRotation));
-  bottomLeftMotor->moveVoltage(static_cast<int16_t>(ySpeed - xSpeed + zRotation));
+  topLeftMotor->moveVoltage(
+    static_cast<int16_t>(std::clamp(forwardSpeed + xSpeed + yaw, -1.0, 1.0) * maxVoltage));
+  topRightMotor->moveVoltage(
+    static_cast<int16_t>(std::clamp(forwardSpeed - xSpeed - yaw, -1.0, 1.0) * maxVoltage));
+  bottomRightMotor->moveVoltage(
+    static_cast<int16_t>(std::clamp(forwardSpeed + xSpeed - yaw, -1.0, 1.0) * maxVoltage));
+  bottomLeftMotor->moveVoltage(
+    static_cast<int16_t>(std::clamp(forwardSpeed - xSpeed + yaw, -1.0, 1.0) * maxVoltage));
 }
 
 void XDriveModel::left(const double ispeed) const {
-  topLeftMotor->moveVelocity(static_cast<int16_t>(ispeed * maxOutput));
-  bottomLeftMotor->moveVelocity(static_cast<int16_t>(ispeed * maxOutput));
+  const double speed = std::clamp(ispeed, -1.0, 1.0);
+  topLeftMotor->moveVelocity(static_cast<int16_t>(speed * maxVelocity));
+  bottomLeftMotor->moveVelocity(static_cast<int16_t>(speed * maxVelocity));
 }
 
 void XDriveModel::right(const double ispeed) const {
-  topRightMotor->moveVelocity(static_cast<int16_t>(ispeed * maxOutput));
-  bottomRightMotor->moveVelocity(static_cast<int16_t>(ispeed * maxOutput));
+  const double speed = std::clamp(ispeed, -1.0, 1.0);
+  topRightMotor->moveVelocity(static_cast<int16_t>(speed * maxVelocity));
+  bottomRightMotor->moveVelocity(static_cast<int16_t>(speed * maxVelocity));
 }
 
 std::valarray<std::int32_t> XDriveModel::getSensorVals() const {
@@ -213,6 +221,54 @@ void XDriveModel::setGearing(const AbstractMotor::gearset gearset) const {
   topRightMotor->setGearing(gearset);
   bottomRightMotor->setGearing(gearset);
   bottomLeftMotor->setGearing(gearset);
+}
+
+void XDriveModel::setPosPID(const double ikF,
+                            const double ikP,
+                            const double ikI,
+                            const double ikD) const {
+  topLeftMotor->setPosPID(ikF, ikP, ikI, ikD);
+  topRightMotor->setPosPID(ikF, ikP, ikI, ikD);
+  bottomRightMotor->setPosPID(ikF, ikP, ikI, ikD);
+  bottomLeftMotor->setPosPID(ikF, ikP, ikI, ikD);
+}
+
+void XDriveModel::setPosPIDFull(const double ikF,
+                                const double ikP,
+                                const double ikI,
+                                const double ikD,
+                                const double ifilter,
+                                const double ilimit,
+                                const double ithreshold,
+                                const double iloopSpeed) const {
+  topLeftMotor->setPosPIDFull(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed);
+  topRightMotor->setPosPIDFull(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed);
+  bottomRightMotor->setPosPIDFull(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed);
+  bottomLeftMotor->setPosPIDFull(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed);
+}
+
+void XDriveModel::setVelPID(const double ikF,
+                            const double ikP,
+                            const double ikI,
+                            const double ikD) const {
+  topLeftMotor->setVelPID(ikF, ikP, ikI, ikD);
+  topRightMotor->setVelPID(ikF, ikP, ikI, ikD);
+  bottomRightMotor->setVelPID(ikF, ikP, ikI, ikD);
+  bottomLeftMotor->setVelPID(ikF, ikP, ikI, ikD);
+}
+
+void XDriveModel::setVelPIDFull(const double ikF,
+                                const double ikP,
+                                const double ikI,
+                                const double ikD,
+                                const double ifilter,
+                                const double ilimit,
+                                const double ithreshold,
+                                const double iloopSpeed) const {
+  topLeftMotor->setVelPIDFull(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed);
+  topRightMotor->setVelPIDFull(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed);
+  bottomRightMotor->setVelPIDFull(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed);
+  bottomLeftMotor->setVelPIDFull(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed);
 }
 
 std::shared_ptr<AbstractMotor> XDriveModel::getTopLeftMotor() const {

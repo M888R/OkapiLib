@@ -21,19 +21,19 @@ Motor::Motor(const std::uint8_t port,
              const AbstractMotor::encoderUnits encoderUnits)
   : pros::Motor(port,
                 gearset == AbstractMotor::gearset::red
-                  ? pros::c::E_MOTOR_GEARSET_36
+                  ? pros::E_MOTOR_GEARSET_36
                   : gearset == AbstractMotor::gearset::green
-                      ? pros::c::E_MOTOR_GEARSET_18
-                      : gearset == AbstractMotor::gearset::blue ? pros::c::E_MOTOR_GEARSET_06
-                                                                : pros::c::E_MOTOR_GEARSET_INVALID,
+                      ? pros::E_MOTOR_GEARSET_18
+                      : gearset == AbstractMotor::gearset::blue ? pros::E_MOTOR_GEARSET_06
+                                                                : pros::E_MOTOR_GEARSET_INVALID,
                 reverse,
                 encoderUnits == AbstractMotor::encoderUnits::counts
-                  ? pros::c::E_MOTOR_ENCODER_COUNTS
+                  ? pros::E_MOTOR_ENCODER_COUNTS
                   : encoderUnits == AbstractMotor::encoderUnits::degrees
-                      ? pros::c::E_MOTOR_ENCODER_DEGREES
+                      ? pros::E_MOTOR_ENCODER_DEGREES
                       : encoderUnits == AbstractMotor::encoderUnits::rotations
-                          ? pros::c::E_MOTOR_ENCODER_ROTATIONS
-                          : pros::c::E_MOTOR_ENCODER_INVALID),
+                          ? pros::E_MOTOR_ENCODER_ROTATIONS
+                          : pros::E_MOTOR_ENCODER_INVALID),
     gearset(igearset) {
 }
 
@@ -51,6 +51,10 @@ std::int32_t Motor::moveVelocity(const std::int16_t ivelocity) const {
 
 std::int32_t Motor::moveVoltage(const std::int16_t ivoltage) const {
   return move_voltage(ivoltage);
+}
+
+std::int32_t Motor::modifyProfiledVelocity(std::int32_t ivelocity) const {
+  return modify_profiled_velocity(ivelocity);
 }
 
 double Motor::getTargetPosition() const {
@@ -129,16 +133,29 @@ std::int32_t Motor::getVoltage() const {
   return get_voltage();
 }
 
-std::int32_t Motor::setBrakeMode(const AbstractMotor::brakeMode imode) const {
+std::int32_t Motor::setBrakeMode(const AbstractMotor::brakeMode imode) {
   switch (imode) {
   case AbstractMotor::brakeMode::brake:
-    return set_brake_mode(pros::c::E_MOTOR_BRAKE_BRAKE);
+    return set_brake_mode(pros::E_MOTOR_BRAKE_BRAKE);
   case AbstractMotor::brakeMode::coast:
-    return set_brake_mode(pros::c::E_MOTOR_BRAKE_COAST);
+    return set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
   case AbstractMotor::brakeMode::hold:
-    return set_brake_mode(pros::c::E_MOTOR_BRAKE_HOLD);
+    return set_brake_mode(pros::E_MOTOR_BRAKE_HOLD);
   case AbstractMotor::brakeMode::invalid:
-    return set_brake_mode(pros::c::E_MOTOR_BRAKE_INVALID);
+    return set_brake_mode(pros::E_MOTOR_BRAKE_INVALID);
+  }
+}
+
+AbstractMotor::brakeMode Motor::getBrakeMode() const {
+  switch (get_brake_mode()) {
+  case pros::E_MOTOR_BRAKE_COAST:
+    return AbstractMotor::brakeMode::coast;
+  case pros::E_MOTOR_BRAKE_BRAKE:
+    return AbstractMotor::brakeMode::brake;
+  case pros::E_MOTOR_BRAKE_HOLD:
+    return AbstractMotor::brakeMode::hold;
+  case pros::E_MOTOR_BRAKE_INVALID:
+    return AbstractMotor::brakeMode::invalid;
   }
 }
 
@@ -146,29 +163,59 @@ std::int32_t Motor::setCurrentLimit(const std::int32_t ilimit) const {
   return set_current_limit(ilimit);
 }
 
-std::int32_t Motor::setEncoderUnits(const AbstractMotor::encoderUnits iunits) const {
+std::int32_t Motor::getCurrentLimit() const {
+  return get_current_limit();
+}
+
+std::int32_t Motor::setEncoderUnits(const AbstractMotor::encoderUnits iunits) {
   switch (iunits) {
   case AbstractMotor::encoderUnits::counts:
-    return set_encoder_units(pros::c::E_MOTOR_ENCODER_COUNTS);
+    return set_encoder_units(pros::E_MOTOR_ENCODER_COUNTS);
   case AbstractMotor::encoderUnits::degrees:
-    return set_encoder_units(pros::c::E_MOTOR_ENCODER_DEGREES);
+    return set_encoder_units(pros::E_MOTOR_ENCODER_DEGREES);
   case AbstractMotor::encoderUnits::rotations:
-    return set_encoder_units(pros::c::E_MOTOR_ENCODER_ROTATIONS);
+    return set_encoder_units(pros::E_MOTOR_ENCODER_ROTATIONS);
   case AbstractMotor::encoderUnits::invalid:
-    return set_encoder_units(pros::c::E_MOTOR_ENCODER_INVALID);
+    return set_encoder_units(pros::E_MOTOR_ENCODER_INVALID);
   }
 }
 
-std::int32_t Motor::setGearing(const AbstractMotor::gearset igearset) const {
+AbstractMotor::encoderUnits Motor::getEncoderUnits() const {
+  switch (get_encoder_units()) {
+  case pros::E_MOTOR_ENCODER_DEGREES:
+    return AbstractMotor::encoderUnits::degrees;
+  case pros::E_MOTOR_ENCODER_ROTATIONS:
+    return AbstractMotor::encoderUnits::rotations;
+  case pros::E_MOTOR_ENCODER_COUNTS:
+    return AbstractMotor::encoderUnits::counts;
+  case pros::E_MOTOR_ENCODER_INVALID:
+    return AbstractMotor::encoderUnits::invalid;
+  }
+}
+
+std::int32_t Motor::setGearing(const AbstractMotor::gearset igearset) {
   switch (igearset) {
   case AbstractMotor::gearset::blue:
-    return set_gearing(pros::c::E_MOTOR_GEARSET_06);
+    return set_gearing(pros::E_MOTOR_GEARSET_06);
   case AbstractMotor::gearset::green:
-    return set_gearing(pros::c::E_MOTOR_GEARSET_18);
+    return set_gearing(pros::E_MOTOR_GEARSET_18);
   case AbstractMotor::gearset::red:
-    return set_gearing(pros::c::E_MOTOR_GEARSET_36);
+    return set_gearing(pros::E_MOTOR_GEARSET_36);
   case AbstractMotor::gearset::invalid:
-    return set_gearing(pros::c::E_MOTOR_GEARSET_INVALID);
+    return set_gearing(pros::E_MOTOR_GEARSET_INVALID);
+  }
+}
+
+AbstractMotor::gearset Motor::getGearing() const {
+  switch (get_gearing()) {
+  case pros::E_MOTOR_GEARSET_36:
+    return AbstractMotor::gearset::red;
+  case pros::E_MOTOR_GEARSET_18:
+    return AbstractMotor::gearset::green;
+  case pros::E_MOTOR_GEARSET_06:
+    return AbstractMotor::gearset::blue;
+  case pros::E_MOTOR_GEARSET_INVALID:
+    return AbstractMotor::gearset::invalid;
   }
 }
 
@@ -178,6 +225,40 @@ std::int32_t Motor::setReversed(const bool ireverse) const {
 
 std::int32_t Motor::setVoltageLimit(const std::int32_t ilimit) const {
   return set_voltage_limit(ilimit);
+}
+
+std::int32_t
+Motor::setPosPID(const double ikF, const double ikP, const double ikI, const double ikD) const {
+  return set_pos_pid(convert_pid(ikF, ikP, ikI, ikD));
+}
+
+std::int32_t Motor::setPosPIDFull(const double ikF,
+                                  const double ikP,
+                                  const double ikI,
+                                  const double ikD,
+                                  const double ifilter,
+                                  const double ilimit,
+                                  const double ithreshold,
+                                  const double iloopSpeed) const {
+  return set_pos_pid_full(
+    convert_pid_full(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed));
+}
+
+std::int32_t
+Motor::setVelPID(const double ikF, const double ikP, const double ikI, const double ikD) const {
+  return set_vel_pid(convert_pid(ikF, ikP, ikI, ikD));
+}
+
+std::int32_t Motor::setVelPIDFull(const double ikF,
+                                  const double ikP,
+                                  const double ikI,
+                                  const double ikD,
+                                  const double ifilter,
+                                  const double ilimit,
+                                  const double ithreshold,
+                                  const double iloopSpeed) const {
+  return set_vel_pid_full(
+    convert_pid_full(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed));
 }
 
 std::shared_ptr<ContinuousRotarySensor> Motor::getEncoder() const {

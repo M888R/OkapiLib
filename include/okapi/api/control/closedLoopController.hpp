@@ -8,6 +8,7 @@
 #ifndef _OKAPI_CLOSEDLOOPCONTROLLER_HPP_
 #define _OKAPI_CLOSEDLOOPCONTROLLER_HPP_
 
+#include "okapi/api/control/controllerOutput.hpp"
 #include "okapi/api/units/QTime.hpp"
 
 namespace okapi {
@@ -17,7 +18,8 @@ namespace okapi {
  * @tparam Input The target/input type.
  * @tparam Output The error/output type.
  */
-template <typename Input, typename Output> class ClosedLoopController {
+template <typename Input, typename Output>
+class ClosedLoopController : public ControllerOutput<Input> {
   public:
   virtual ~ClosedLoopController() = default;
 
@@ -27,6 +29,13 @@ template <typename Input, typename Output> class ClosedLoopController {
    * @param itarget the new target
    */
   virtual void setTarget(Input itarget) = 0;
+
+  /**
+   * Gets the last set target, or the default target if none was set.
+   *
+   * @return the last target
+   */
+  virtual Input getTarget() = 0;
 
   /**
    * Returns the last error of the controller.

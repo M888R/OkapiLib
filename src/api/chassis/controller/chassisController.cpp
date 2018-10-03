@@ -9,7 +9,10 @@
 #include <cmath>
 
 namespace okapi {
-ChassisController::ChassisController(std::shared_ptr<ChassisModel> imodel) : model(imodel) {
+ChassisController::ChassisController(std::shared_ptr<ChassisModel> imodel,
+                                     const double imaxVelocity,
+                                     const double imaxVoltage)
+  : ChassisModel::ChassisModel(imaxVelocity, imaxVoltage), model(imodel) {
 }
 
 ChassisController::~ChassisController() = default;
@@ -18,8 +21,8 @@ void ChassisController::forward(const double ispeed) const {
   model->forward(ispeed);
 }
 
-void ChassisController::driveVector(const double iySpeed, const double izRotation) const {
-  model->driveVector(iySpeed, izRotation);
+void ChassisController::driveVector(const double iforwardSpeed, const double iyaw) const {
+  model->driveVector(iforwardSpeed, iyaw);
 }
 
 void ChassisController::rotate(const double ispeed) const {
@@ -36,10 +39,10 @@ void ChassisController::tank(const double ileftSpeed,
   model->tank(ileftSpeed, irightSpeed, ithreshold);
 }
 
-void ChassisController::arcade(const double iySpeed,
-                               const double izRotation,
+void ChassisController::arcade(const double iforwardSpeed,
+                               const double iyaw,
                                const double ithreshold) const {
-  model->arcade(iySpeed, izRotation, ithreshold);
+  model->arcade(iforwardSpeed, iyaw, ithreshold);
 }
 
 void ChassisController::left(const double ispeed) const {
@@ -68,6 +71,50 @@ void ChassisController::setEncoderUnits(const AbstractMotor::encoderUnits units)
 
 void ChassisController::setGearing(const AbstractMotor::gearset gearset) const {
   model->setGearing(gearset);
+}
+
+void ChassisController::setPosPID(const double ikF,
+                                  const double ikP,
+                                  const double ikI,
+                                  const double ikD) const {
+  model->setPosPID(ikF, ikP, ikI, ikD);
+}
+
+void ChassisController::setPosPIDFull(const double ikF,
+                                      const double ikP,
+                                      const double ikI,
+                                      const double ikD,
+                                      const double ifilter,
+                                      const double ilimit,
+                                      const double ithreshold,
+                                      const double iloopSpeed) const {
+  model->setPosPIDFull(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed);
+}
+
+void ChassisController::setVelPID(const double ikF,
+                                  const double ikP,
+                                  const double ikI,
+                                  const double ikD) const {
+  model->setVelPID(ikF, ikP, ikI, ikD);
+}
+
+void ChassisController::setVelPIDFull(const double ikF,
+                                      const double ikP,
+                                      const double ikI,
+                                      const double ikD,
+                                      const double ifilter,
+                                      const double ilimit,
+                                      const double ithreshold,
+                                      const double iloopSpeed) const {
+  model->setVelPIDFull(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed);
+}
+
+void ChassisController::setMaxVelocity(double imaxVelocity) {
+  model->setMaxVelocity(imaxVelocity);
+}
+
+void ChassisController::setMaxVoltage(double imaxVoltage) {
+  model->setMaxVoltage(imaxVoltage);
 }
 
 std::shared_ptr<ChassisModel> ChassisController::getChassisModel() const {

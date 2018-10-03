@@ -6,9 +6,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 #include "okapi/impl/device/motor/motorGroup.hpp"
+#include "okapi/api/util/logging.hpp"
 
 namespace okapi {
 MotorGroup::MotorGroup(const std::initializer_list<Motor> &imotors) : motors(imotors) {
+  if (motors.empty()) {
+    Logger::instance()->error(
+      "MotorGroup: A MotorGroup must be created with at least one motor. No motors were given.");
+    throw std::invalid_argument(
+      "MotorGroup: A MotorGroup must be created with at least one motor. No motors were given.");
+  }
 }
 
 std::int32_t MotorGroup::moveAbsolute(const double iposition, const std::int32_t ivelocity) const {
@@ -55,10 +62,10 @@ std::int32_t MotorGroup::moveVoltage(const std::int16_t ivoltage) const {
   return out;
 }
 
-std::int32_t MotorGroup::move(const std::int8_t ivoltage) const {
+std::int32_t MotorGroup::modifyProfiledVelocity(std::int32_t ivelocity) const {
   auto out = 1;
   for (auto &&elem : motors) {
-    const auto errorCode = elem.pros::Motor::move(ivoltage);
+    const auto errorCode = elem.modifyProfiledVelocity(ivelocity);
     if (errorCode != 1) {
       out = errorCode;
     }
@@ -149,7 +156,7 @@ std::int32_t MotorGroup::getVoltage() const {
   return motors[0].get_voltage();
 }
 
-std::int32_t MotorGroup::setBrakeMode(const AbstractMotor::brakeMode imode) const {
+std::int32_t MotorGroup::setBrakeMode(const AbstractMotor::brakeMode imode) {
   auto out = 1;
   for (auto &&elem : motors) {
     const auto errorCode = elem.setBrakeMode(imode);
@@ -158,6 +165,10 @@ std::int32_t MotorGroup::setBrakeMode(const AbstractMotor::brakeMode imode) cons
     }
   }
   return out;
+}
+
+AbstractMotor::brakeMode MotorGroup::getBrakeMode() const {
+  return motors[0].getBrakeMode();
 }
 
 std::int32_t MotorGroup::setCurrentLimit(const std::int32_t ilimit) const {
@@ -171,7 +182,11 @@ std::int32_t MotorGroup::setCurrentLimit(const std::int32_t ilimit) const {
   return out;
 }
 
-std::int32_t MotorGroup::setEncoderUnits(const AbstractMotor::encoderUnits iunits) const {
+std::int32_t MotorGroup::getCurrentLimit() const {
+  return motors[0].getCurrentLimit();
+}
+
+std::int32_t MotorGroup::setEncoderUnits(const AbstractMotor::encoderUnits iunits) {
   auto out = 1;
   for (auto &&elem : motors) {
     const auto errorCode = elem.setEncoderUnits(iunits);
@@ -182,7 +197,11 @@ std::int32_t MotorGroup::setEncoderUnits(const AbstractMotor::encoderUnits iunit
   return out;
 }
 
-std::int32_t MotorGroup::setGearing(const AbstractMotor::gearset igearset) const {
+AbstractMotor::encoderUnits MotorGroup::getEncoderUnits() const {
+  return motors[0].getEncoderUnits();
+}
+
+std::int32_t MotorGroup::setGearing(const AbstractMotor::gearset igearset) {
   auto out = 1;
   for (auto &&elem : motors) {
     const auto errorCode = elem.setGearing(igearset);
@@ -191,6 +210,10 @@ std::int32_t MotorGroup::setGearing(const AbstractMotor::gearset igearset) const
     }
   }
   return out;
+}
+
+AbstractMotor::gearset MotorGroup::getGearing() const {
+  return motors[0].getGearing();
 }
 
 std::int32_t MotorGroup::setReversed(const bool ireverse) const {
@@ -219,6 +242,72 @@ void MotorGroup::controllerSet(const double ivalue) {
   for (auto &&elem : motors) {
     elem.moveVelocity(ivalue);
   }
+}
+
+std::int32_t MotorGroup::setPosPID(const double ikF,
+                                   const double ikP,
+                                   const double ikI,
+                                   const double ikD) const {
+  auto out = 1;
+  for (auto &&elem : motors) {
+    const auto errorCode = elem.setPosPID(ikF, ikP, ikI, ikD);
+    if (errorCode != 1) {
+      out = errorCode;
+    }
+  }
+  return out;
+}
+
+std::int32_t MotorGroup::setPosPIDFull(const double ikF,
+                                       const double ikP,
+                                       const double ikI,
+                                       const double ikD,
+                                       const double ifilter,
+                                       const double ilimit,
+                                       const double ithreshold,
+                                       const double iloopSpeed) const {
+  auto out = 1;
+  for (auto &&elem : motors) {
+    const auto errorCode =
+      elem.setPosPIDFull(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed);
+    if (errorCode != 1) {
+      out = errorCode;
+    }
+  }
+  return out;
+}
+
+std::int32_t MotorGroup::setVelPID(const double ikF,
+                                   const double ikP,
+                                   const double ikI,
+                                   const double ikD) const {
+  auto out = 1;
+  for (auto &&elem : motors) {
+    const auto errorCode = elem.setVelPID(ikF, ikP, ikI, ikD);
+    if (errorCode != 1) {
+      out = errorCode;
+    }
+  }
+  return out;
+}
+
+std::int32_t MotorGroup::setVelPIDFull(const double ikF,
+                                       const double ikP,
+                                       const double ikI,
+                                       const double ikD,
+                                       const double ifilter,
+                                       const double ilimit,
+                                       const double ithreshold,
+                                       const double iloopSpeed) const {
+  auto out = 1;
+  for (auto &&elem : motors) {
+    const auto errorCode =
+      elem.setVelPIDFull(ikF, ikP, ikI, ikD, ifilter, ilimit, ithreshold, iloopSpeed);
+    if (errorCode != 1) {
+      out = errorCode;
+    }
+  }
+  return out;
 }
 
 std::shared_ptr<ContinuousRotarySensor> MotorGroup::getEncoder() const {

@@ -35,11 +35,13 @@ void MockMotor::controllerSet(const double ivalue) {
 
 int32_t MockMotor::moveAbsolute(const double iposition, const std::int32_t ivelocity) const {
   lastPosition = (int16_t)iposition;
+  lastProfiledMaxVelocity = ivelocity;
   return 0;
 }
 
 int32_t MockMotor::moveRelative(const double iposition, const std::int32_t ivelocity) const {
   lastPosition += iposition;
+  lastProfiledMaxVelocity = ivelocity;
   return 0;
 }
 
@@ -63,27 +65,30 @@ int32_t MockMotor::tarePosition() const {
   return 0;
 }
 
-int32_t MockMotor::setBrakeMode(const brakeMode imode) const {
+int32_t MockMotor::setBrakeMode(const AbstractMotor::brakeMode imode) {
+  brakeMode = imode;
   return 0;
 }
 
-int32_t MockMotor::setCurrentLimit(const std::int32_t ilimit) const {
+int32_t MockMotor::setCurrentLimit(const std::int32_t) const {
   return 0;
 }
 
-int32_t MockMotor::setEncoderUnits(const encoderUnits iunits) const {
+int32_t MockMotor::setEncoderUnits(const AbstractMotor::encoderUnits iunits) {
+  encoderUnits = iunits;
   return 0;
 }
 
-int32_t MockMotor::setGearing(const gearset igearset) const {
+int32_t MockMotor::setGearing(const AbstractMotor::gearset igearset) {
+  gearset = igearset;
   return 0;
 }
 
-int32_t MockMotor::setReversed(const bool ireverse) const {
+int32_t MockMotor::setReversed(const bool) const {
   return 0;
 }
 
-int32_t MockMotor::setVoltageLimit(const std::int32_t ilimit) const {
+int32_t MockMotor::setVoltageLimit(const std::int32_t) const {
   return 0;
 }
 
@@ -160,7 +165,45 @@ int32_t MockMotor::getVoltage() const {
   return 0;
 }
 
-MockTimer::MockTimer() : firstCalled(millis()), lastCalled(firstCalled), mark(firstCalled) {
+int32_t MockMotor::modifyProfiledVelocity(std::int32_t) const {
+  return 0;
+}
+
+int32_t MockMotor::setPosPID(double, double, double, double) const {
+  return 0;
+}
+
+int32_t
+MockMotor::setPosPIDFull(double, double, double, double, double, double, double, double) const {
+  return 0;
+}
+
+int32_t MockMotor::setVelPID(double, double, double, double) const {
+  return 0;
+}
+
+int32_t
+MockMotor::setVelPIDFull(double, double, double, double, double, double, double, double) const {
+  return 0;
+}
+
+AbstractMotor::brakeMode MockMotor::getBrakeMode() const {
+  return brakeMode;
+}
+
+int32_t MockMotor::getCurrentLimit() const {
+  return 2500;
+}
+
+AbstractMotor::encoderUnits MockMotor::getEncoderUnits() const {
+  return encoderUnits;
+}
+
+AbstractMotor::gearset MockMotor::getGearing() const {
+  return gearset;
+}
+
+MockTimer::MockTimer() : AbstractTimer(millis()) {
 }
 
 QTime MockTimer::millis() const {
@@ -170,67 +213,7 @@ QTime MockTimer::millis() const {
          millisecond;
 }
 
-QTime MockTimer::getDt() {
-  const QTime currTime = millis();
-  const QTime dt = currTime - lastCalled;
-  lastCalled = currTime;
-  return dt;
-}
-
-QTime MockTimer::getStartingTime() const {
-  return firstCalled;
-}
-
-QTime MockTimer::getDtFromStart() const {
-  return millis() - firstCalled;
-}
-
-void MockTimer::placeMark() {
-  mark = millis();
-}
-
-void MockTimer::placeHardMark() {
-  if (hardMark == 0_ms)
-    hardMark = millis();
-}
-
-QTime MockTimer::clearHardMark() {
-  const QTime old = hardMark;
-  hardMark = 0_ms;
-  return old;
-}
-
-QTime MockTimer::getDtFromMark() const {
-  return millis() - mark;
-}
-
-QTime MockTimer::getDtFromHardMark() const {
-  return hardMark == 0_ms ? 0_ms : millis() - hardMark;
-}
-
-bool MockTimer::repeat(const QTime time) {
-  if (repeatMark == 0_ms) {
-    repeatMark = millis();
-    return false;
-  }
-
-  if (millis() - repeatMark >= time) {
-    repeatMark = 0_ms;
-    return true;
-  }
-
-  return false;
-}
-
-bool MockTimer::repeat(const QFrequency frequency) {
-  return repeat(QTime(1 / frequency.convert(Hz)));
-}
-
-QTime MockTimer::clearMark() {
-  return 0_ms;
-}
-
-ConstantMockTimer::ConstantMockTimer(const QTime idt) : dtToReturn(idt) {
+ConstantMockTimer::ConstantMockTimer(const QTime idt) : AbstractTimer(0_ms), dtToReturn(idt) {
 }
 
 QTime ConstantMockTimer::millis() const {
@@ -238,6 +221,10 @@ QTime ConstantMockTimer::millis() const {
 }
 
 QTime ConstantMockTimer::getDt() {
+  return dtToReturn;
+}
+
+QTime ConstantMockTimer::readDt() const {
   return dtToReturn;
 }
 
@@ -267,11 +254,11 @@ QTime ConstantMockTimer::getDtFromHardMark() const {
   return dtToReturn;
 }
 
-bool ConstantMockTimer::repeat(QTime time) {
+bool ConstantMockTimer::repeat(QTime) {
   return false;
 }
 
-bool ConstantMockTimer::repeat(QFrequency frequency) {
+bool ConstantMockTimer::repeat(QFrequency) {
   return false;
 }
 
@@ -333,11 +320,12 @@ TimeUtil createTimeUtil(const Supplier<std::unique_ptr<SettledUtil>> &isettledUt
     isettledUtilSupplier);
 }
 
-SimulatedSystem::SimulatedSystem(FlywheelSimulator &simulator)
-  : simulator(simulator), thread(trampoline, this) {
+SimulatedSystem::SimulatedSystem(FlywheelSimulator &isimulator) : simulator(isimulator) {
 }
 
-SimulatedSystem::~SimulatedSystem() = default;
+SimulatedSystem::~SimulatedSystem() {
+  dtorCalled.store(true, std::memory_order::memory_order_relaxed);
+}
 
 double SimulatedSystem::controllerGet() {
   return simulator.getAngle();
@@ -348,13 +336,10 @@ void SimulatedSystem::controllerSet(double ivalue) {
 }
 
 void SimulatedSystem::step() {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-noreturn"
-  while (!shouldJoin) {
+  while (!dtorCalled.load(std::memory_order::memory_order_relaxed)) {
     simulator.step();
     rate.delayUntil(10_ms);
   }
-#pragma clang diagnostic pop
 }
 
 void SimulatedSystem::trampoline(void *system) {
@@ -363,103 +348,65 @@ void SimulatedSystem::trampoline(void *system) {
   }
 }
 
+void SimulatedSystem::startThread() {
+  thread = std::thread(trampoline, this);
+}
+
 void SimulatedSystem::join() {
-  shouldJoin = true;
+  dtorCalled.store(true, std::memory_order::memory_order_relaxed);
   thread.join();
 }
 
-void MockAsyncController::waitUntilSettled() {
+MockAsyncPosIntegratedController::MockAsyncPosIntegratedController()
+  : AsyncPosIntegratedController(std::make_shared<MockMotor>(), createTimeUtil()) {
 }
 
-void MockAsyncController::setTarget(double itarget) {
-  target = itarget;
+MockAsyncPosIntegratedController::MockAsyncPosIntegratedController(const TimeUtil &itimeUtil)
+  : AsyncPosIntegratedController(std::make_shared<MockMotor>(), itimeUtil) {
 }
 
-double MockAsyncController::getError() const {
-  return 0;
+bool MockAsyncPosIntegratedController::isSettled() {
+  return isSettledOverride || AsyncPosIntegratedController::isSettled();
 }
 
-bool MockAsyncController::isSettled() {
-  return isSettledOverride;
+MockAsyncVelIntegratedController::MockAsyncVelIntegratedController()
+  : AsyncVelIntegratedController(std::make_shared<MockMotor>(), createTimeUtil()) {
 }
 
-void MockAsyncController::reset() {
+bool MockAsyncVelIntegratedController::isSettled() {
+  return isSettledOverride || AsyncVelIntegratedController::isSettled();
 }
 
-void MockAsyncController::flipDisable() {
-  disabled = !disabled;
+void MockAsyncVelIntegratedController::setTarget(const double itarget) {
+  lastTarget = itarget;
+
+  if (itarget > maxTarget) {
+    maxTarget = itarget;
+  }
+
+  AsyncVelIntegratedController::setTarget(itarget);
 }
 
-void MockAsyncController::flipDisable(bool iisDisabled) {
-  disabled = iisDisabled;
-}
+void MockAsyncVelIntegratedController::controllerSet(const double ivalue) {
+  lastControllerOutputSet = ivalue;
 
-bool MockAsyncController::isDisabled() const {
-  return disabled;
+  if (ivalue > maxControllerOutputSet) {
+    maxControllerOutputSet = ivalue;
+  }
+
+  AsyncVelIntegratedController::controllerSet(ivalue);
 }
 
 MockIterativeController::MockIterativeController()
   : IterativePosPIDController(0, 0, 0, 0, createTimeUtil()) {
 }
 
-double MockIterativeController::step(double inewReading) {
-  return 0;
-}
-
-void MockIterativeController::setTarget(double itarget) {
-  target = itarget;
-}
-
-double MockIterativeController::getOutput() const {
-  return output;
-}
-
-double MockIterativeController::getError() const {
-  return 0;
+MockIterativeController::MockIterativeController(const double ikP)
+  : IterativePosPIDController(ikP, 0, 0, 0, createTimeUtil()) {
 }
 
 bool MockIterativeController::isSettled() {
-  return isSettledOverride;
-}
-
-void MockIterativeController::setGains(double ikP, double ikI, double ikD, double ikBias) {
-}
-
-void MockIterativeController::setSampleTime(QTime isampleTime) {
-  sampleTime = isampleTime;
-}
-
-void MockIterativeController::setOutputLimits(double imax, double imin) {
-  maxOutput = imax;
-  minOutput = imin;
-}
-
-void MockIterativeController::setIntegralLimits(double imax, double imin) {
-}
-
-void MockIterativeController::setErrorSumLimits(double imax, double imin) {
-}
-
-void MockIterativeController::reset() {
-}
-
-void MockIterativeController::setIntegratorReset(bool iresetOnZero) {
-}
-
-void MockIterativeController::flipDisable() {
-  disabled = !disabled;
-}
-
-void MockIterativeController::flipDisable(bool iisDisabled) {
-  disabled = iisDisabled;
-}
-
-bool MockIterativeController::isDisabled() const {
-  return disabled;
-}
-
-QTime MockIterativeController::getSampleTime() const {
-  return sampleTime;
+  return isSettledOverride || IterativePosPIDController::isSettled();
 }
 
 void assertMotorsHaveBeenStopped(MockMotor *leftMotor, MockMotor *rightMotor) {
@@ -467,5 +414,110 @@ void assertMotorsHaveBeenStopped(MockMotor *leftMotor, MockMotor *rightMotor) {
   EXPECT_DOUBLE_EQ(leftMotor->lastVelocity, 0);
   EXPECT_DOUBLE_EQ(rightMotor->lastVoltage, 0);
   EXPECT_DOUBLE_EQ(rightMotor->lastVelocity, 0);
+}
+
+void assertMotorsGearsetEquals(const AbstractMotor::gearset expected,
+                               const std::initializer_list<MockMotor> &motors) {
+  for (auto &motor : motors) {
+    EXPECT_EQ(expected, motor.gearset);
+  }
+}
+
+void assertMotorsBrakeModeEquals(const AbstractMotor::brakeMode expected,
+                                 const std::initializer_list<MockMotor> &motors) {
+  for (auto &motor : motors) {
+    EXPECT_EQ(expected, motor.brakeMode);
+  }
+}
+
+void assertMotorsEncoderUnitsEquals(const AbstractMotor::encoderUnits expected,
+                                    const std::initializer_list<MockMotor> &motors) {
+  for (auto &motor : motors) {
+    EXPECT_EQ(expected, motor.encoderUnits);
+  }
+}
+
+void assertAsyncControllerFollowsDisableLifecycle(AsyncController<double, double> &controller,
+                                                  std::int16_t &domainValue,
+                                                  std::int16_t &voltageValue,
+                                                  int expectedOutput) {
+  EXPECT_FALSE(controller.isDisabled()) << "Should not be disabled at the start.";
+
+  controller.setTarget(100);
+  EXPECT_EQ(domainValue, expectedOutput) << "Should be on by default.";
+
+  controller.flipDisable();
+  EXPECT_TRUE(controller.isDisabled()) << "Should be disabled after flipDisable";
+  EXPECT_EQ(voltageValue, 0) << "Disabling the controller should turn the motor off";
+
+  controller.flipDisable();
+  EXPECT_FALSE(controller.isDisabled()) << "Should not be disabled after flipDisable";
+  EXPECT_EQ(domainValue, expectedOutput)
+    << "Re-enabling the controller should move the motor to the previous target";
+
+  controller.flipDisable();
+  EXPECT_TRUE(controller.isDisabled()) << "Should be disabled after flipDisable";
+  controller.reset();
+  EXPECT_TRUE(controller.isDisabled()) << "Should be disabled after reset";
+  EXPECT_EQ(voltageValue, 0) << "Resetting the controller should not change the current target";
+
+  controller.flipDisable();
+  EXPECT_FALSE(controller.isDisabled()) << "Should not be disabled after flipDisable";
+  domainValue = 1337;            // Sample value to check it doesn't change
+  MockRate().delayUntil(100_ms); // Wait for it to possibly change
+  EXPECT_EQ(domainValue, 1337)
+    << "Re-enabling the controller after a reset should not move the motor";
+}
+
+void assertIterativeControllerFollowsDisableLifecycle(
+  IterativeController<double, double> &controller) {
+  EXPECT_FALSE(controller.isDisabled()) << "Should not be disabled at the start.";
+
+  controller.setTarget(100);
+  EXPECT_NE(controller.step(0), 0) << "Should be on by default.";
+  EXPECT_NE(controller.getOutput(), 0);
+
+  controller.flipDisable();
+  EXPECT_TRUE(controller.isDisabled()) << "Should be disabled after flipDisable";
+  // Run getOutput before step to check that it really does respect disabled
+  EXPECT_EQ(controller.getOutput(), 0);
+  EXPECT_EQ(controller.step(0), 0) << "Disabling the controller should give zero output";
+  EXPECT_EQ(controller.getOutput(), 0);
+
+  controller.flipDisable();
+  EXPECT_FALSE(controller.isDisabled()) << "Should not be disabled after flipDisable";
+  EXPECT_NE(controller.getOutput(), 0);
+  EXPECT_NE(controller.step(0), 0);
+  EXPECT_NE(controller.getOutput(), 0);
+
+  controller.flipDisable();
+  EXPECT_TRUE(controller.isDisabled()) << "Should be disabled after flipDisable";
+  controller.reset();
+  EXPECT_TRUE(controller.isDisabled()) << "Should be disabled after reset";
+  EXPECT_EQ(controller.getOutput(), 0);
+  EXPECT_EQ(controller.step(0), 0);
+}
+
+void assertControllerFollowsTargetLifecycle(ClosedLoopController<double, double> &controller) {
+  EXPECT_DOUBLE_EQ(0, controller.getError()) << "Should start with 0 error";
+  controller.setTarget(100);
+  EXPECT_DOUBLE_EQ(controller.getError(), 100);
+  controller.setTarget(0);
+  EXPECT_DOUBLE_EQ(controller.getError(), 0);
+}
+
+void assertIterativeControllerScalesControllerSetTargets(
+  IterativeController<double, double> &controller) {
+  EXPECT_DOUBLE_EQ(controller.getTarget(), 0);
+  controller.setOutputLimits(-100, 100);
+  controller.controllerSet(0.5);
+  EXPECT_DOUBLE_EQ(controller.getTarget(), 50);
+}
+
+void assertAsyncWrapperScalesControllerSetTargets(AsyncWrapper<double, double> &controller) {
+  EXPECT_DOUBLE_EQ(controller.getTarget(), 0);
+  controller.setOutputLimits(-100, 100);
+  controller.controllerSet(0.5);
+  EXPECT_DOUBLE_EQ(controller.getTarget(), 50);
 }
 } // namespace okapi

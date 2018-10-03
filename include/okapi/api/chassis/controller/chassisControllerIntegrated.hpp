@@ -9,7 +9,6 @@
 #define _OKAPI_CHASSISCONTROLLERINTEGRATED_HPP_
 
 #include "okapi/api/chassis/controller/chassisController.hpp"
-#include "okapi/api/chassis/controller/chassisScales.hpp"
 #include "okapi/api/control/async/asyncPosIntegratedController.hpp"
 #include "okapi/api/util/logging.hpp"
 #include "okapi/api/util/timeUtil.hpp"
@@ -101,15 +100,31 @@ class ChassisControllerIntegrated : public virtual ChassisController {
    */
   void stop() override;
 
+  /**
+   * Sets a new maximum velocity in RPM [0-600].
+   *
+   * @param imaxVelocity the new maximum velocity
+   */
+  void setMaxVelocity(double imaxVelocity) override;
+
+  /**
+   * Get the ChassisScales.
+   */
+  ChassisScales getChassisScales() const override;
+
+  /**
+   * Get the GearsetRatioPair.
+   */
+  AbstractMotor::GearsetRatioPair getGearsetRatioPair() const override;
+
   protected:
   Logger *logger;
   std::unique_ptr<AbstractRate> rate;
   std::unique_ptr<AsyncPosIntegratedController> leftController;
   std::unique_ptr<AsyncPosIntegratedController> rightController;
   int lastTarget;
-  const double gearRatio;
-  const double straightScale;
-  const double turnScale;
+  ChassisScales scales;
+  AbstractMotor::GearsetRatioPair gearsetRatioPair;
 };
 } // namespace okapi
 

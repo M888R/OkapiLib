@@ -10,7 +10,6 @@
 
 #include "okapi/api/control/async/asyncController.hpp"
 #include "okapi/api/control/controllerInput.hpp"
-#include "okapi/api/control/controllerOutput.hpp"
 #include "okapi/api/control/iterative/iterativeController.hpp"
 #include "okapi/api/control/util/settledUtil.hpp"
 #include "okapi/api/coreProsAPI.hpp"
@@ -18,6 +17,7 @@
 #include "okapi/api/util/logging.hpp"
 #include "okapi/api/util/mathUtil.hpp"
 #include "okapi/api/util/supplier.hpp"
+#include <atomic>
 #include <memory>
 
 namespace okapi {
@@ -25,9 +25,8 @@ template <typename Input, typename Output>
 class AsyncWrapper : virtual public AsyncController<Input, Output> {
   public:
   /**
-   * A wrapper class that transforms an IterativeController into an AsyncController by running it in
-   * another task. The input controller will act like an AsyncController. The output of the
-   * IterativeController will be scaled by the given scale (127 by default).
+   * A wrapper class that transforms an IterativeController into an AsyncController by running it
+   * in another task. The input controller will act like an AsyncController.
    *
    * @param iinput controller input, passed to the IterativeController
    * @param ioutput controller output, written to from the IterativeController
@@ -39,16 +38,29 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
   AsyncWrapper(std::shared_ptr<ControllerInput<Input>> iinput,
                std::shared_ptr<ControllerOutput<Output>> ioutput,
                std::unique_ptr<IterativeController<Input, Output>> icontroller,
-               const Supplier<std::unique_ptr<AbstractRate>> &irateSupplier,
-               std::unique_ptr<SettledUtil> isettledUtil)
+               const Supplier<std::unique_ptr<AbstractRate>> &irateSupplier)
     : logger(Logger::instance()),
       input(iinput),
       output(ioutput),
       controller(std::move(icontroller)),
-      loopRate(std::move(irateSupplier.get())),
-      settledRate(std::move(irateSupplier.get())),
-      settledUtil(std::move(isettledUtil)),
-      task(trampoline, this) {
+      loopRate(irateSupplier.get()),
+      settledRate(irateSupplier.get()) {
+  }
+
+  AsyncWrapper(AsyncWrapper<Input, Output> &&other) noexcept
+    : logger(other.logger),
+      input(std::move(other.input)),
+      output(std::move(other.output)),
+      controller(std::move(other.controller)),
+      loopRate(std::move(other.loopRate)),
+      settledRate(std::move(other.settledRate)),
+      dtorCalled(other.dtorCalled.load(std::memory_order::memory_order_relaxed)),
+      task(other.task) {
+  }
+
+  ~AsyncWrapper() override {
+    dtorCalled.store(true, std::memory_order::memory_order_relaxed);
+    delete task;
   }
 
   /**
@@ -56,11 +68,32 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    */
   void setTarget(Input itarget) override {
     logger->info("AsyncWrapper: Set target to " + std::to_string(itarget));
+    hasFirstTarget = true;
     controller->setTarget(itarget);
+    lastTarget = itarget;
   }
 
   /**
-   * Returns the last calculated output of the controller. Default is 0.
+   * Writes the value of the controller output. This method might be automatically called in another
+   * thread by the controller.
+   *
+   * @param ivalue the controller's output
+   */
+  void controllerSet(Input ivalue) override {
+    controller->controllerSet(ivalue);
+  }
+
+  /**
+   * Gets the last set target, or the default target if none was set.
+   *
+   * @return the last target
+   */
+  Input getTarget() override {
+    return controller->getTarget();
+  }
+
+  /**
+   * Returns the last calculated output of the controller.
    */
   Output getOutput() const {
     return controller->getOutput();
@@ -82,11 +115,11 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * @return whether the controller is settled
    */
   bool isSettled() override {
-    return controller->isSettled();
+    return isDisabled() || controller->isSettled();
   }
 
   /**
-   * Set time between loops. Default does nothing.
+   * Set time between loops.
    *
    * @param isampleTime time between loops
    */
@@ -95,7 +128,7 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
   }
 
   /**
-   * Set controller output bounds. Default does nothing.
+   * Set controller output bounds.
    *
    * @param imax max output
    * @param imin min output
@@ -105,12 +138,31 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
   }
 
   /**
+   * Get the upper output bound.
+   *
+   * @return  the upper output bound
+   */
+  Output getMaxOutput() {
+    return controller->getMaxOutput();
+  }
+
+  /**
+   * Get the lower output bound.
+   *
+   * @return the lower output bound
+   */
+  Output getMinOutput() {
+    return controller->getMinOutput();
+  }
+
+  /**
    * Resets the controller so it can start from 0 again properly. Keeps configuration from
    * before.
    */
   void reset() override {
     logger->info("AsyncWrapper: Reset");
     controller->reset();
+    hasFirstTarget = false;
   }
 
   /**
@@ -118,7 +170,9 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * cause the controller to move to its last set target, unless it was reset in that time.
    */
   void flipDisable() override {
+    logger->info("AsyncWrapper: flipDisable " + std::to_string(!controller->isDisabled()));
     controller->flipDisable();
+    resumeMovement();
   }
 
   /**
@@ -130,6 +184,7 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
   void flipDisable(bool iisDisabled) override {
     logger->info("AsyncWrapper: flipDisable " + std::to_string(iisDisabled));
     controller->flipDisable(iisDisabled);
+    resumeMovement();
   }
 
   /**
@@ -148,11 +203,21 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
   void waitUntilSettled() override {
     logger->info("AsyncWrapper: Waiting to settle");
 
-    while (!settledUtil->isSettled(getError())) {
+    while (!isSettled()) {
       loopRate->delayUntil(motorUpdateRate);
     }
 
     logger->info("AsyncWrapper: Done waiting to settle");
+  }
+
+  /**
+   * Starts the internal thread. This should not be called by normal users. This method is called
+   * by the AsyncControllerFactory when making a new instance of this class.
+   */
+  void startThread() {
+    if (!task) {
+      task = new CrossplatformThread(trampoline, this);
+    }
   }
 
   protected:
@@ -160,10 +225,12 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
   std::shared_ptr<ControllerInput<Input>> input;
   std::shared_ptr<ControllerOutput<Output>> output;
   std::unique_ptr<IterativeController<Input, Output>> controller;
+  bool hasFirstTarget{false};
+  Input lastTarget;
   std::unique_ptr<AbstractRate> loopRate;
   std::unique_ptr<AbstractRate> settledRate;
-  std::unique_ptr<SettledUtil> settledUtil;
-  CrossplatformThread task;
+  std::atomic_bool dtorCalled{false};
+  CrossplatformThread *task{nullptr};
 
   static void trampoline(void *context) {
     if (context) {
@@ -172,16 +239,28 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
   }
 
   void loop() {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-noreturn"
-    while (true) {
-      if (!controller->isDisabled()) {
+    while (!dtorCalled.load(std::memory_order::memory_order_relaxed)) {
+      if (!isDisabled()) {
         output->controllerSet(controller->step(input->controllerGet()));
       }
 
       loopRate->delayUntil(controller->getSampleTime());
     }
-#pragma clang diagnostic pop
+  }
+
+  /**
+   * Resumes moving after the controller is reset. Should not cause movement if the controller is
+   * turned off, reset, and turned back on.
+   */
+  virtual void resumeMovement() {
+    if (isDisabled()) {
+      // This will grab the output *when disabled*
+      output->controllerSet(controller->getOutput());
+    } else {
+      if (hasFirstTarget) {
+        setTarget(lastTarget);
+      }
+    }
   }
 };
 } // namespace okapi

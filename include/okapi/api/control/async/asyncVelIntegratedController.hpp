@@ -29,6 +29,13 @@ class AsyncVelIntegratedController : public AsyncVelocityController<double, doub
   void setTarget(double itarget) override;
 
   /**
+   * Gets the last set target, or the default target if none was set.
+   *
+   * @return the last target
+   */
+  double getTarget() override;
+
+  /**
    * Returns the last error of the controller.
    */
   double getError() const override;
@@ -75,6 +82,14 @@ class AsyncVelIntegratedController : public AsyncVelocityController<double, doub
    * implementation-dependent.
    */
   void waitUntilSettled() override;
+
+  /**
+   * Writes the value of the controller output. This method might be automatically called in another
+   * thread by the controller. The range of input values is expected to be [-1, 1].
+   *
+   * @param ivalue the controller's output in the range [-1, 1]
+   */
+  void controllerSet(double ivalue) override;
 
   protected:
   Logger *logger;

@@ -1,5 +1,3 @@
-#include <utility>
-
 /**
  * @author Ryan Benasutti, WPI
  *
@@ -8,6 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 #include "okapi/api/chassis/controller/chassisControllerIntegrated.hpp"
+#include "okapi/api/util/mathUtil.hpp"
 
 namespace okapi {
 ChassisControllerIntegrated::ChassisControllerIntegrated(
@@ -17,15 +16,14 @@ ChassisControllerIntegrated::ChassisControllerIntegrated(
   std::unique_ptr<AsyncPosIntegratedController> irightController,
   AbstractMotor::GearsetRatioPair igearset,
   const ChassisScales &iscales)
-  : ChassisController(imodel),
+  : ChassisController(imodel, toUnderlyingType(igearset.internalGearset)),
     logger(Logger::instance()),
     rate(itimeUtil.getRate()),
     leftController(std::move(ileftController)),
     rightController(std::move(irightController)),
     lastTarget(0),
-    gearRatio(igearset.ratio),
-    straightScale(iscales.straight),
-    turnScale(iscales.turn) {
+    scales(iscales),
+    gearsetRatioPair(igearset) {
   if (igearset.ratio == 0) {
     logger->error("ChassisControllerIntegrated: The gear ratio cannot be zero! Check if you are "
                   "using integer division.");
@@ -44,7 +42,7 @@ void ChassisControllerIntegrated::moveDistance(const QLength itarget) {
 
 void ChassisControllerIntegrated::moveDistance(const double itarget) {
   // Divide by straightScale so the final result turns back into motor degrees
-  moveDistance((itarget / straightScale) * meter);
+  moveDistance((itarget / scales.straight) * meter);
 }
 
 void ChassisControllerIntegrated::moveDistanceAsync(const QLength itarget) {
@@ -56,7 +54,7 @@ void ChassisControllerIntegrated::moveDistanceAsync(const QLength itarget) {
   leftController->flipDisable(false);
   rightController->flipDisable(false);
 
-  const double newTarget = itarget.convert(meter) * straightScale * gearRatio;
+  const double newTarget = itarget.convert(meter) * scales.straight * gearsetRatioPair.ratio;
 
   logger->info("ChassisControllerIntegrated: moving " + std::to_string(newTarget) +
                " motor degrees");
@@ -68,7 +66,7 @@ void ChassisControllerIntegrated::moveDistanceAsync(const QLength itarget) {
 
 void ChassisControllerIntegrated::moveDistanceAsync(const double itarget) {
   // Divide by straightScale so the final result turns back into motor degrees
-  moveDistanceAsync((itarget / straightScale) * meter);
+  moveDistanceAsync((itarget / scales.straight) * meter);
 }
 
 void ChassisControllerIntegrated::turnAngle(const QAngle idegTarget) {
@@ -78,7 +76,7 @@ void ChassisControllerIntegrated::turnAngle(const QAngle idegTarget) {
 
 void ChassisControllerIntegrated::turnAngle(const double idegTarget) {
   // Divide by turnScale so the final result turns back into motor degrees
-  turnAngle((idegTarget / turnScale) * degree);
+  turnAngle((idegTarget / scales.turn) * degree);
 }
 
 void ChassisControllerIntegrated::turnAngleAsync(const QAngle idegTarget) {
@@ -90,7 +88,7 @@ void ChassisControllerIntegrated::turnAngleAsync(const QAngle idegTarget) {
   leftController->flipDisable(false);
   rightController->flipDisable(false);
 
-  const double newTarget = idegTarget.convert(degree) * turnScale * gearRatio;
+  const double newTarget = idegTarget.convert(degree) * scales.turn * gearsetRatioPair.ratio;
 
   logger->info("ChassisControllerIntegrated: turning " + std::to_string(newTarget) +
                " motor degrees");
@@ -102,7 +100,7 @@ void ChassisControllerIntegrated::turnAngleAsync(const QAngle idegTarget) {
 
 void ChassisControllerIntegrated::turnAngleAsync(const double idegTarget) {
   // Divide by turnScale so the final result turns back into motor degrees
-  turnAngleAsync((idegTarget / turnScale) * degree);
+  turnAngleAsync((idegTarget / scales.turn) * degree);
 }
 
 void ChassisControllerIntegrated::waitUntilSettled() {
@@ -123,5 +121,19 @@ void ChassisControllerIntegrated::stop() {
   rightController->flipDisable(true);
 
   ChassisController::stop();
+}
+
+void ChassisControllerIntegrated::setMaxVelocity(const double imaxVelocity) {
+  leftController->setMaxVelocity(imaxVelocity);
+  rightController->setMaxVelocity(imaxVelocity);
+  ChassisController::setMaxVelocity(imaxVelocity);
+}
+
+ChassisScales ChassisControllerIntegrated::getChassisScales() const {
+  return scales;
+}
+
+AbstractMotor::GearsetRatioPair ChassisControllerIntegrated::getGearsetRatioPair() const {
+  return gearsetRatioPair;
 }
 } // namespace okapi
