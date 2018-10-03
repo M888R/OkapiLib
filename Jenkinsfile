@@ -1,13 +1,20 @@
-job('example') {
-    steps {
-        cmake {
-            cmakeInstallation('InSearchPath')
-            generator('CodeBlocks - Unix Makefiles')
-            cleanBuild()
-            sourceDir('src')
-            buildDir('cmake-build-debug')
-            buildToolStep {
-                useCmake()
+pipeline {
+    agent any
+
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Building..'
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Testing..'
+            }
+        }
+        stage('Deploy') {
+            steps {
+                echo 'Deploying....'
             }
         }
     }
