@@ -3,7 +3,9 @@ pipeline {
 
     stages {
         stage('Build') {
-          sh "bash Makefile"
+          steps{
+            sh "bash Makefile"
+            }
         }
 
     }
