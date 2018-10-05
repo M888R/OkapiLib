@@ -5,7 +5,7 @@ pipeline {
         stage('Build') {
             steps {
               dir('OkapiLib') {
-                sh('Makefile')
+                sh('./Makefile')
                 }
             }
         }
