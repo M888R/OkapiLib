@@ -8,8 +8,26 @@ pipeline {
     stages {
         stage('Build') {
             steps {
-                sh 'make'
-                sh 'prosv5 lsusb'
+                ansiColor('xterm') {
+                    sh 'make'
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                ansiColor('xterm') {
+                    sh 'prosv5 lsusb'
+                    sh 'prosv5 ut'
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            ansiColor('xterm') {
+                sh 'prosv5 v5 stop'
             }
         }
     }
