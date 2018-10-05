@@ -3,7 +3,9 @@ pipeline {
 
     stages {
         stage('Build') {
-          steps{
+          node{
+            checkout scm
+            sh 'mvn clean install'
             sh 'make'
             }
         }
