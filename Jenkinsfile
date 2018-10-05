@@ -4,17 +4,9 @@ pipeline {
     stages {
         stage('Build') {
             steps {
+              dir('OkapiLib') {
                 sh('Makefile')
-            }
-        }
-        stage('Test') {
-            steps {
-                echo 'Testing..'
-            }
-        }
-        stage('Deploy') {
-            steps {
-                echo 'Deploying....'
+                }
             }
         }
     }
