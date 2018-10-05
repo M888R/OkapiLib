@@ -4,7 +4,7 @@ pipeline {
     stages {
         stage('Build') {
           steps{
-            make [-f Makefile]
+            sh 'make'
             }
         }
 
