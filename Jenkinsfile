@@ -5,7 +5,7 @@ pipeline {
         stage('Build') {
           steps{
             checkout scm
-            sh 'mvn clean install'
+            cleanWs()
             sh 'make'
             }
         }
