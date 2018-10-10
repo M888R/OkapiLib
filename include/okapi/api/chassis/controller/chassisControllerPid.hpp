@@ -124,28 +124,52 @@ class ChassisControllerPID : public virtual ChassisController {
   AbstractMotor::GearsetRatioPair getGearsetRatioPair() const override;
 
   protected:
-  Logger *logger;
-  std::unique_ptr<AbstractRate> rate;
-  std::unique_ptr<IterativePosPIDController> distancePid;
-  std::unique_ptr<IterativePosPIDController> anglePid;
-  std::unique_ptr<IterativePosPIDController> turnPid;
-  ChassisScales scales;
-  AbstractMotor::GearsetRatioPair gearsetRatioPair;
-  std::atomic_bool doneLooping{true};
-  std::atomic_bool newMovement{false};
-  std::atomic_bool dtorCalled{false};
+  typedef enum { distance, angle, none } modeType;
 
-  static void trampoline(void *context);
-  void loop();
+  struct membersd {
+    membersd(Logger *ilogger,
+             std::unique_ptr<AbstractRate> irate,
+             std::unique_ptr<IterativePosPIDController> idistanceController,
+             std::unique_ptr<IterativePosPIDController> iangleController,
+             std::unique_ptr<IterativePosPIDController> iturnController,
+             const ChassisScales &iscales,
+             const AbstractMotor::GearsetRatioPair igearset,
+             const std::shared_ptr<ChassisModel> &imodel)
+      : logger(ilogger),
+        rate(std::move(irate)),
+        distancePid(std::move(idistanceController)),
+        anglePid(std::move(iangleController)),
+        turnPid(std::move(iturnController)),
+        scales(iscales),
+        gearsetRatioPair(igearset),
+        myModel(imodel) {
+    }
+
+    Logger *logger;
+    std::unique_ptr<AbstractRate> rate;
+    std::unique_ptr<IterativePosPIDController> distancePid;
+    std::unique_ptr<IterativePosPIDController> anglePid;
+    std::unique_ptr<IterativePosPIDController> turnPid;
+    ChassisScales scales;
+    AbstractMotor::GearsetRatioPair gearsetRatioPair;
+    std::shared_ptr<ChassisModel> myModel;
+
+    std::atomic_bool doneLooping{true};
+    std::atomic_bool newMovement{false};
+    std::atomic_bool dtorCalled{false};
+
+    modeType mode{none};
+
+    CrossplatformThread *task{nullptr};
+  };
+
+  std::shared_ptr<membersd> members;
+
+  static void loop(void *params);
 
   bool waitForDistanceSettled();
   bool waitForAngleSettled();
   void stopAfterSettled();
-
-  typedef enum { distance, angle, none } modeType;
-  modeType mode{none};
-
-  CrossplatformThread *task{nullptr};
 };
 } // namespace okapi
 
