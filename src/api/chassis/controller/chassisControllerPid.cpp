@@ -27,6 +27,7 @@ ChassisControllerPID::ChassisControllerPID(
                                        iscales,
                                        igearset,
                                        imodel)) {
+  members->logger->error("1");
   if (igearset.ratio == 0) {
     members->logger->error(
       "ChassisControllerPID: The gear ratio cannot be zero! Check if you are using "
@@ -37,6 +38,7 @@ ChassisControllerPID::ChassisControllerPID(
 
   setGearing(igearset.internalGearset);
   setEncoderUnits(AbstractMotor::encoderUnits::degrees);
+  members->logger->error("2");
 }
 
 ChassisControllerPID::ChassisControllerPID(ChassisControllerPID &&other) noexcept
@@ -52,49 +54,57 @@ ChassisControllerPID::~ChassisControllerPID() {
 }
 
 void ChassisControllerPID::loop(void *params) {
+  printf("33333333333\n");
+  if (params == nullptr) {
+    printf("params null\n");
+  }
   std::shared_ptr<membersd> members = *static_cast<std::shared_ptr<membersd> *>(params);
+  if (members->logger == nullptr) {
+    printf("logger null\n");
+  }
+  printf("4\n");
 
-  auto encStartVals = members->myModel->getSensorVals();
+//  auto encStartVals = members->myModel->getSensorVals();
   std::valarray<std::int32_t> encVals;
   double distanceElapsed = 0, angleChange = 0;
   modeType pastMode = none;
 
-  while (!members->dtorCalled.load(std::memory_order_acquire)) {
-    printf("loop\n");
-    /**
-     * doneLooping is set to false by moveDistanceAsync and turnAngleAsync and then set to true by
-     * waitUntilSettled
-     */
-    if (!members->doneLooping.load(std::memory_order_acquire)) {
-      if (members->mode != pastMode || members->newMovement.load(std::memory_order_acquire)) {
-        encStartVals = members->myModel->getSensorVals();
-        members->newMovement.store(false, std::memory_order_release);
-      }
-
-      switch (members->mode) {
-      case distance:
-        encVals = members->myModel->getSensorVals() - encStartVals;
-        distanceElapsed = static_cast<double>((encVals[0] + encVals[1])) / 2.0;
-        angleChange = static_cast<double>(encVals[0] - encVals[1]);
-        members->myModel->driveVector(members->distancePid->step(distanceElapsed),
-                                      members->anglePid->step(angleChange));
-        break;
-
-      case angle:
-        encVals = members->myModel->getSensorVals() - encStartVals;
-        angleChange = static_cast<double>(encVals[0] - encVals[1]);
-        members->myModel->rotate(members->turnPid->step(angleChange));
-        break;
-
-      default:
-        break;
-      }
-
-      pastMode = members->mode;
-    }
-
-    members->rate->delayUntil(10_ms);
-  }
+//  while (!members->dtorCalled.load(std::memory_order_acquire)) {
+//    printf("loop\n");
+//    /**
+//     * doneLooping is set to false by moveDistanceAsync and turnAngleAsync and then set to true by
+//     * waitUntilSettled
+//     */
+//    if (!members->doneLooping.load(std::memory_order_acquire)) {
+//      if (members->mode != pastMode || members->newMovement.load(std::memory_order_acquire)) {
+//        encStartVals = members->myModel->getSensorVals();
+//        members->newMovement.store(false, std::memory_order_release);
+//      }
+//
+//      switch (members->mode) {
+//      case distance:
+//        encVals = members->myModel->getSensorVals() - encStartVals;
+//        distanceElapsed = static_cast<double>((encVals[0] + encVals[1])) / 2.0;
+//        angleChange = static_cast<double>(encVals[0] - encVals[1]);
+//        members->myModel->driveVector(members->distancePid->step(distanceElapsed),
+//                                      members->anglePid->step(angleChange));
+//        break;
+//
+//      case angle:
+//        encVals = members->myModel->getSensorVals() - encStartVals;
+//        angleChange = static_cast<double>(encVals[0] - encVals[1]);
+//        members->myModel->rotate(members->turnPid->step(angleChange));
+//        break;
+//
+//      default:
+//        break;
+//      }
+//
+//      pastMode = members->mode;
+//    }
+//
+//    members->rate->delayUntil(10_ms);
+//  }
 
   printf("done\n");
 }
