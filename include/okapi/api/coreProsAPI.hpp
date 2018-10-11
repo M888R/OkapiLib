@@ -37,7 +37,6 @@ class CrossplatformThread {
 #ifdef THREADS_STD
     thread.join();
 #else
-    printf("task dtor\n");
     pros::c::task_delete(thread);
 #endif
   }
