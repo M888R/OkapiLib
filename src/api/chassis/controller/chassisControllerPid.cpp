@@ -19,14 +19,14 @@ ChassisControllerPID::ChassisControllerPID(
   const AbstractMotor::GearsetRatioPair igearset,
   const ChassisScales &iscales)
   : ChassisController(imodel, toUnderlyingType(igearset.internalGearset)),
-    members(std::make_shared<membersd>(Logger::instance(),
-                                       itimeUtil.getRate(),
-                                       std::move(idistanceController),
-                                       std::move(iangleController),
-                                       std::move(iturnController),
-                                       iscales,
-                                       igearset,
-                                       imodel)) {
+    members(std::make_shared<members_s>(Logger::instance(),
+                                        itimeUtil.getRate(),
+                                        std::move(idistanceController),
+                                        std::move(iangleController),
+                                        std::move(iturnController),
+                                        iscales,
+                                        igearset,
+                                        imodel)) {
   members->logger->error("1");
   if (igearset.ratio == 0) {
     members->logger->error(
@@ -48,21 +48,12 @@ ChassisControllerPID::ChassisControllerPID(ChassisControllerPID &&other) noexcep
 }
 
 ChassisControllerPID::~ChassisControllerPID() {
-  printf("dtor\n");
   members->dtorCalled.store(true, std::memory_order_release);
   delete members->task;
 }
 
 void ChassisControllerPID::loop(void *params) {
-  printf("33333333333\n");
-  if (params == nullptr) {
-    printf("params null\n");
-  }
-  std::shared_ptr<membersd> members = *static_cast<std::shared_ptr<membersd> *>(params);
-  if (members->logger == nullptr) {
-    printf("logger null\n");
-  }
-  printf("4\n");
+  std::shared_ptr<members_s> members = *static_cast<std::shared_ptr<members_s> *>(params);
 
   auto encStartVals = members->myModel->getSensorVals();
   std::valarray<std::int32_t> encVals;
@@ -70,7 +61,6 @@ void ChassisControllerPID::loop(void *params) {
   modeType pastMode = none;
 
   while (!members->dtorCalled.load(std::memory_order_acquire)) {
-    printf("loop\n");
     /**
      * doneLooping is set to false by moveDistanceAsync and turnAngleAsync and then set to true by
      * waitUntilSettled
@@ -105,8 +95,6 @@ void ChassisControllerPID::loop(void *params) {
 
     members->rate->delayUntil(10_ms);
   }
-
-  printf("done\n");
 }
 
 void ChassisControllerPID::moveDistanceAsync(const QLength itarget) {

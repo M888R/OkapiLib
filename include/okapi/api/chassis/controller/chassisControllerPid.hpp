@@ -126,15 +126,15 @@ class ChassisControllerPID : public virtual ChassisController {
   protected:
   typedef enum { distance, angle, none } modeType;
 
-  struct membersd {
-    membersd(Logger *ilogger,
-             std::unique_ptr<AbstractRate> irate,
-             std::unique_ptr<IterativePosPIDController> idistanceController,
-             std::unique_ptr<IterativePosPIDController> iangleController,
-             std::unique_ptr<IterativePosPIDController> iturnController,
-             const ChassisScales &iscales,
-             const AbstractMotor::GearsetRatioPair igearset,
-             const std::shared_ptr<ChassisModel> &imodel)
+  struct members_s {
+    members_s(Logger *ilogger,
+              std::unique_ptr<AbstractRate> irate,
+              std::unique_ptr<IterativePosPIDController> idistanceController,
+              std::unique_ptr<IterativePosPIDController> iangleController,
+              std::unique_ptr<IterativePosPIDController> iturnController,
+              const ChassisScales &iscales,
+              const AbstractMotor::GearsetRatioPair igearset,
+              const std::shared_ptr<ChassisModel> &imodel)
       : logger(ilogger),
         rate(std::move(irate)),
         distancePid(std::move(idistanceController)),
@@ -163,7 +163,7 @@ class ChassisControllerPID : public virtual ChassisController {
     CrossplatformThread *task{nullptr};
   };
 
-  std::shared_ptr<membersd> members;
+  std::shared_ptr<members_s> members;
 
   static void loop(void *params);
 
