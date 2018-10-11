@@ -26,7 +26,8 @@ ChassisControllerPID::ChassisControllerPID(
                                         std::move(iturnController),
                                         iscales,
                                         igearset,
-                                        imodel)) {
+                                        imodel,
+                                        this)) {
   members->logger->error("1");
   if (igearset.ratio == 0) {
     members->logger->error(
@@ -61,6 +62,15 @@ void ChassisControllerPID::loop(void *params) {
   modeType pastMode = none;
 
   while (!members->dtorCalled.load(std::memory_order_acquire)) {
+    if (members->self == nullptr) {
+      /**
+       * self will be null if task which created the parent ChassisControllerPID was deleted and the
+       * idle task freed its stack. For example, when the robot is running during opcontrol and is
+       * suddenly disabled.
+       */
+      return;
+    }
+
     /**
      * doneLooping is set to false by moveDistanceAsync and turnAngleAsync and then set to true by
      * waitUntilSettled

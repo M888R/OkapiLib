@@ -134,7 +134,8 @@ class ChassisControllerPID : public virtual ChassisController {
               std::unique_ptr<IterativePosPIDController> iturnController,
               const ChassisScales &iscales,
               const AbstractMotor::GearsetRatioPair igearset,
-              const std::shared_ptr<ChassisModel> &imodel)
+              const std::shared_ptr<ChassisModel> &imodel,
+              const ChassisControllerPID *iself)
       : logger(ilogger),
         rate(std::move(irate)),
         distancePid(std::move(idistanceController)),
@@ -142,7 +143,8 @@ class ChassisControllerPID : public virtual ChassisController {
         turnPid(std::move(iturnController)),
         scales(iscales),
         gearsetRatioPair(igearset),
-        myModel(imodel) {
+        myModel(imodel),
+        self(iself) {
     }
 
     Logger *logger;
@@ -161,6 +163,7 @@ class ChassisControllerPID : public virtual ChassisController {
     modeType mode{none};
 
     CrossplatformThread *task{nullptr};
+    volatile const ChassisControllerPID *self;
   };
 
   std::shared_ptr<members_s> members;
