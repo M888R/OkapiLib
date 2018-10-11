@@ -28,7 +28,6 @@ ChassisControllerPID::ChassisControllerPID(
                                         igearset,
                                         imodel,
                                         this)) {
-  members->logger->error("1");
   if (igearset.ratio == 0) {
     members->logger->error(
       "ChassisControllerPID: The gear ratio cannot be zero! Check if you are using "
@@ -39,7 +38,6 @@ ChassisControllerPID::ChassisControllerPID(
 
   setGearing(igearset.internalGearset);
   setEncoderUnits(AbstractMotor::encoderUnits::degrees);
-  members->logger->error("2");
 }
 
 ChassisControllerPID::ChassisControllerPID(ChassisControllerPID &&other) noexcept
