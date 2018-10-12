@@ -15,45 +15,35 @@ AsyncLinearMotionProfileController::AsyncLinearMotionProfileController(
   const double imaxAccel,
   const double imaxJerk,
   std::shared_ptr<ControllerOutput<double>> ioutput)
-  : logger(Logger::instance()),
-    maxVel(imaxVel),
-    maxAccel(imaxAccel),
-    maxJerk(imaxJerk),
-    output(ioutput),
-    timeUtil(itimeUtil) {
+  : members(std::make_shared<members_s>(Logger::instance(),
+                                        imaxVel,
+                                        imaxAccel,
+                                        imaxJerk,
+                                        ioutput,
+                                        itimeUtil,
+                                        this)) {
 }
 
 AsyncLinearMotionProfileController::AsyncLinearMotionProfileController(
   AsyncLinearMotionProfileController &&other) noexcept
-  : logger(other.logger),
-    paths(std::move(other.paths)),
-    maxVel(other.maxVel),
-    maxAccel(other.maxAccel),
-    maxJerk(other.maxJerk),
-    output(std::move(other.output)),
-    timeUtil(std::move(other.timeUtil)),
-    currentPath(std::move(other.currentPath)),
-    isRunning(other.isRunning.load(std::memory_order_acquire)),
-    disabled(other.disabled.load(std::memory_order_acquire)),
-    dtorCalled(other.dtorCalled.load(std::memory_order_acquire)),
-    task(other.task) {
+  : members(std::move(other.members)) {
 }
 
 AsyncLinearMotionProfileController::~AsyncLinearMotionProfileController() {
-  dtorCalled.store(true, std::memory_order_release);
+  members->dtorCalled.store(true, std::memory_order_release);
 
-  for (auto path : paths) {
+  for (auto path : members->paths) {
     free(path.second.segment);
   }
 
-  delete task;
+  delete members->task;
 }
 
 void AsyncLinearMotionProfileController::generatePath(std::initializer_list<double> iwaypoints,
                                                       const std::string &ipathId) {
   if (iwaypoints.size() == 0) {
     // No point in generating a path
-    logger->warn(
+    members->logger->warn(
       "AsyncLinearMotionProfileController: Not generating a path because no waypoints were given.");
     return;
   }
@@ -65,15 +55,15 @@ void AsyncLinearMotionProfileController::generatePath(std::initializer_list<doub
   }
 
   TrajectoryCandidate candidate;
-  logger->info("AsyncLinearMotionProfileController: Preparing trajectory");
+  members->logger->info("AsyncLinearMotionProfileController: Preparing trajectory");
   pathfinder_prepare(points.data(),
                      static_cast<int>(points.size()),
                      FIT_HERMITE_CUBIC,
                      PATHFINDER_SAMPLES_FAST,
                      0.001,
-                     maxVel,
-                     maxAccel,
-                     maxJerk,
+                     members->maxVel,
+                     members->maxAccel,
+                     members->maxJerk,
                      &candidate);
 
   const int length = candidate.length;
@@ -91,7 +81,7 @@ void AsyncLinearMotionProfileController::generatePath(std::initializer_list<doub
                       pointToString(points.at(0)),
                       [&](std::string a, Waypoint b) { return a + ", " + pointToString(b); });
 
-    logger->error(message);
+    members->logger->error(message);
 
     if (candidate.laptr) {
       free(candidate.laptr);
@@ -109,7 +99,7 @@ void AsyncLinearMotionProfileController::generatePath(std::initializer_list<doub
   if (trajectory == nullptr) {
     std::string message = "AsyncLinearMotionProfileController: Could not allocate trajectory. The "
                           "path is probably impossible.";
-    logger->error(message);
+    members->logger->error(message);
 
     if (candidate.laptr) {
       free(candidate.laptr);
@@ -122,29 +112,29 @@ void AsyncLinearMotionProfileController::generatePath(std::initializer_list<doub
     throw std::runtime_error(message);
   }
 
-  logger->info("AsyncLinearMotionProfileController: Generating path");
+  members->logger->info("AsyncLinearMotionProfileController: Generating path");
   pathfinder_generate(&candidate, trajectory);
 
   // Free the old path before overwriting it
   removePath(ipathId);
 
-  paths.emplace(ipathId, TrajectoryPair{trajectory, length});
-  logger->info("AsyncLinearMotionProfileController: Completely done generating path");
-  logger->info("AsyncLinearMotionProfileController: " + std::to_string(length));
+  members->paths.emplace(ipathId, TrajectoryPair{trajectory, length});
+  members->logger->info("AsyncLinearMotionProfileController: Completely done generating path");
+  members->logger->info("AsyncLinearMotionProfileController: " + std::to_string(length));
 }
 
 void AsyncLinearMotionProfileController::removePath(const std::string &ipathId) {
-  auto oldPath = paths.find(ipathId);
-  if (oldPath != paths.end()) {
+  auto oldPath = members->paths.find(ipathId);
+  if (oldPath != members->paths.end()) {
     free(oldPath->second.segment);
-    paths.erase(ipathId);
+    members->paths.erase(ipathId);
   }
 }
 
 std::vector<std::string> AsyncLinearMotionProfileController::getPaths() {
   std::vector<std::string> keys;
 
-  for (const auto &path : paths) {
+  for (const auto &path : members->paths) {
     keys.push_back(path.first);
   }
 
@@ -152,8 +142,8 @@ std::vector<std::string> AsyncLinearMotionProfileController::getPaths() {
 }
 
 void AsyncLinearMotionProfileController::setTarget(const std::string ipathId) {
-  currentPath = ipathId;
-  isRunning = true;
+  members->currentPath = ipathId;
+  members->isRunning = true;
 }
 
 void AsyncLinearMotionProfileController::controllerSet(const std::string ivalue) {
@@ -161,36 +151,46 @@ void AsyncLinearMotionProfileController::controllerSet(const std::string ivalue)
 }
 
 std::string AsyncLinearMotionProfileController::getTarget() {
-  return currentPath;
+  return members->currentPath;
 }
 
 std::string AsyncLinearMotionProfileController::getTarget() const {
-  return currentPath;
+  return members->currentPath;
 }
 
 void AsyncLinearMotionProfileController::loop() {
-  auto rate = timeUtil.getRate();
+  auto rate = members->timeUtil.getRate();
 
-  while (!dtorCalled.load(std::memory_order_acquire)) {
-    if (isRunning.load(std::memory_order_acquire) && !isDisabled()) {
-      logger->info("AsyncLinearMotionProfileController: Running with path: " + currentPath);
-      auto path = paths.find(currentPath);
+  while (!members->dtorCalled.load(std::memory_order_acquire)) {
+    if (members->self == nullptr) {
+      /**
+       * self will be null if task which created the parent object was deleted and the idle task
+       * freed its stack. For example, when the robot is running during opcontrol and is suddenly
+       * disabled.
+       */
+      return;
+    }
 
-      if (path == paths.end()) {
-        logger->warn(
+    if (members->isRunning.load(std::memory_order_acquire) && !isDisabled()) {
+      members->logger->info("AsyncLinearMotionProfileController: Running with path: " +
+                            members->currentPath);
+      auto path = members->paths.find(members->currentPath);
+
+      if (path == members->paths.end()) {
+        members->logger->warn(
           "AsyncLinearMotionProfileController: Target was set to non-existent path with name: " +
-          currentPath);
+          members->currentPath);
       } else {
-        logger->debug("AsyncLinearMotionProfileController: Path length is " +
-                      std::to_string(path->second.length));
+        members->logger->debug("AsyncLinearMotionProfileController: Path length is " +
+                               std::to_string(path->second.length));
 
-        executeSinglePath(path->second, timeUtil.getRate());
-        output->controllerSet(0);
+        executeSinglePath(path->second, members->timeUtil.getRate());
+        members->output->controllerSet(0);
 
-        logger->info("AsyncLinearMotionProfileController: Done moving");
+        members->logger->info("AsyncLinearMotionProfileController: Done moving");
       }
 
-      isRunning.store(false, std::memory_order_release);
+      members->isRunning.store(false, std::memory_order_release);
     }
 
     rate->delayUntil(10_ms);
@@ -200,8 +200,8 @@ void AsyncLinearMotionProfileController::loop() {
 void AsyncLinearMotionProfileController::executeSinglePath(const TrajectoryPair &path,
                                                            std::unique_ptr<AbstractRate> rate) {
   for (int i = 0; i < path.length && !isDisabled(); ++i) {
-    currentProfilePosition = path.segment[i].position;
-    output->controllerSet(path.segment[i].velocity / maxVel);
+    members->currentProfilePosition = path.segment[i].position;
+    members->output->controllerSet(path.segment[i].velocity / members->maxVel);
     rate->delayUntil(1_ms);
   }
 }
@@ -213,14 +213,14 @@ void AsyncLinearMotionProfileController::trampoline(void *context) {
 }
 
 void AsyncLinearMotionProfileController::waitUntilSettled() {
-  logger->info("AsyncLinearMotionProfileController: Waiting to settle");
+  members->logger->info("AsyncLinearMotionProfileController: Waiting to settle");
 
-  auto rate = timeUtil.getRate();
+  auto rate = members->timeUtil.getRate();
   while (!isSettled()) {
     rate->delayUntil(10_ms);
   }
 
-  logger->info("AsyncLinearMotionProfileController: Done waiting to settle");
+  members->logger->info("AsyncLinearMotionProfileController: Done waiting to settle");
 }
 
 void AsyncLinearMotionProfileController::moveTo(double iposition, double itarget) {
@@ -232,24 +232,24 @@ void AsyncLinearMotionProfileController::moveTo(double iposition, double itarget
 }
 
 double AsyncLinearMotionProfileController::getError() const {
-  if (const auto path = paths.find(getTarget()); path == paths.end()) {
+  if (const auto path = members->paths.find(getTarget()); path == members->paths.end()) {
     return 0;
   } else {
     // The last position in the path is the target position
-    return path->second.segment[path->second.length - 1].position - currentProfilePosition;
+    return path->second.segment[path->second.length - 1].position - members->currentProfilePosition;
   }
 }
 
 bool AsyncLinearMotionProfileController::isSettled() {
-  return isDisabled() || !isRunning.load(std::memory_order_acquire);
+  return isDisabled() || !members->isRunning.load(std::memory_order_acquire);
 }
 
 void AsyncLinearMotionProfileController::reset() {
   // Interrupt executeSinglePath() by disabling the controller
   flipDisable(true);
 
-  auto rate = timeUtil.getRate();
-  while (isRunning.load(std::memory_order_acquire)) {
+  auto rate = members->timeUtil.getRate();
+  while (members->isRunning.load(std::memory_order_acquire)) {
     rate->delayUntil(1_ms);
   }
 
@@ -257,23 +257,24 @@ void AsyncLinearMotionProfileController::reset() {
 }
 
 void AsyncLinearMotionProfileController::flipDisable() {
-  flipDisable(!disabled.load(std::memory_order_acquire));
+  flipDisable(!members->disabled.load(std::memory_order_acquire));
 }
 
 void AsyncLinearMotionProfileController::flipDisable(const bool iisDisabled) {
-  logger->info("AsyncLinearMotionProfileController: flipDisable " + std::to_string(iisDisabled));
-  disabled.store(iisDisabled, std::memory_order_release);
+  members->logger->info("AsyncLinearMotionProfileController: flipDisable " +
+                        std::to_string(iisDisabled));
+  members->disabled.store(iisDisabled, std::memory_order_release);
   // loop() will set the output to 0 when executeSinglePath() is done
   // the default implementation of executeSinglePath() breaks when disabled
 }
 
 bool AsyncLinearMotionProfileController::isDisabled() const {
-  return disabled.load(std::memory_order_acquire);
+  return members->disabled.load(std::memory_order_acquire);
 }
 
 void AsyncLinearMotionProfileController::startThread() {
-  if (!task) {
-    task = new CrossplatformThread(trampoline, this);
+  if (!members->task) {
+    members->task = new CrossplatformThread(trampoline, this);
   }
 }
 } // namespace okapi

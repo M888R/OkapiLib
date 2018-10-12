@@ -171,20 +171,43 @@ class AsyncLinearMotionProfileController : public AsyncPositionController<std::s
     int length;
   };
 
-  Logger *logger;
-  std::map<std::string, TrajectoryPair> paths{};
-  double maxVel{0};
-  double maxAccel{0};
-  double maxJerk{0};
-  std::shared_ptr<ControllerOutput<double>> output;
-  double currentProfilePosition{0};
-  TimeUtil timeUtil;
+  struct members_s {
+    members_s(Logger *ilogger,
+              const double imaxVel,
+              const double imaxAccel,
+              const double imaxJerk,
+              const std::shared_ptr<ControllerOutput<double>> &ioutput,
+              const TimeUtil &itimeUtil,
+              const AsyncLinearMotionProfileController *iself)
+      : logger(ilogger),
+        maxVel(imaxVel),
+        maxAccel(imaxAccel),
+        maxJerk(imaxJerk),
+        output(ioutput),
+        timeUtil(itimeUtil),
+        self(iself) {
+    }
 
-  std::string currentPath{""};
-  std::atomic_bool isRunning{false};
-  std::atomic_bool disabled{false};
-  std::atomic_bool dtorCalled{false};
-  CrossplatformThread *task{nullptr};
+    Logger *logger;
+    double maxVel;
+    double maxAccel;
+    double maxJerk;
+    std::shared_ptr<ControllerOutput<double>> output;
+    TimeUtil timeUtil;
+
+    std::map<std::string, TrajectoryPair> paths{};
+    std::string currentPath{""};
+    double currentProfilePosition{0};
+
+    std::atomic_bool isRunning{false};
+    std::atomic_bool disabled{false};
+    std::atomic_bool dtorCalled{false};
+
+    CrossplatformThread *task{nullptr};
+    volatile const AsyncLinearMotionProfileController *self;
+  };
+
+  std::shared_ptr<members_s> members;
 
   static void trampoline(void *context);
   void loop();

@@ -205,6 +205,15 @@ void AsyncMotionProfileController::loop() {
   auto rate = members->timeUtil.getRate();
 
   while (!members->dtorCalled.load(std::memory_order_acquire)) {
+    if (members->self == nullptr) {
+      /**
+       * self will be null if task which created the parent object was deleted and the idle task
+       * freed its stack. For example, when the robot is running during opcontrol and is suddenly
+       * disabled.
+       */
+      return;
+    }
+
     if (members->isRunning.load(std::memory_order_acquire) && !isDisabled()) {
       members->logger->info("AsyncMotionProfileController: Running with path: " +
                             members->currentPath);
