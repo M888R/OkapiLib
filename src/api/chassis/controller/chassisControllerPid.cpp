@@ -43,7 +43,6 @@ ChassisControllerPID::ChassisControllerPID(
 ChassisControllerPID::ChassisControllerPID(ChassisControllerPID &&other) noexcept
   : ChassisController(std::move(other.model), other.maxVelocity, other.maxVoltage),
     members(std::move(other.members)) {
-  other.members->task = nullptr;
 }
 
 ChassisControllerPID::~ChassisControllerPID() {
@@ -62,9 +61,9 @@ void ChassisControllerPID::loop(void *params) {
   while (!members->dtorCalled.load(std::memory_order_acquire)) {
     if (members->self == nullptr) {
       /**
-       * self will be null if task which created the parent ChassisControllerPID was deleted and the
-       * idle task freed its stack. For example, when the robot is running during opcontrol and is
-       * suddenly disabled.
+       * self will be null if task which created the parent object was deleted and the idle task
+       * freed its stack. For example, when the robot is running during opcontrol and is suddenly
+       * disabled.
        */
       return;
     }

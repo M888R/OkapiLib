@@ -39,38 +39,31 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
                std::shared_ptr<ControllerOutput<Output>> ioutput,
                std::unique_ptr<IterativeController<Input, Output>> icontroller,
                const Supplier<std::unique_ptr<AbstractRate>> &irateSupplier)
-    : logger(Logger::instance()),
-      input(iinput),
-      output(ioutput),
-      controller(std::move(icontroller)),
-      loopRate(irateSupplier.get()),
-      settledRate(irateSupplier.get()) {
+    : members(std::make_shared<members_s>(Logger::instance(),
+                                          iinput,
+                                          ioutput,
+                                          std::move(icontroller),
+                                          irateSupplier.get(),
+                                          irateSupplier.get(),
+                                          this)) {
   }
 
-  AsyncWrapper(AsyncWrapper<Input, Output> &&other) noexcept
-    : logger(other.logger),
-      input(std::move(other.input)),
-      output(std::move(other.output)),
-      controller(std::move(other.controller)),
-      loopRate(std::move(other.loopRate)),
-      settledRate(std::move(other.settledRate)),
-      dtorCalled(other.dtorCalled.load(std::memory_order_acquire)),
-      task(other.task) {
+  AsyncWrapper(AsyncWrapper<Input, Output> &&other) noexcept : members(std::move(other.members)) {
   }
 
   ~AsyncWrapper() override {
-    dtorCalled.store(true, std::memory_order_release);
-    delete task;
+    members->dtorCalled.store(true, std::memory_order_release);
+    delete members->task;
   }
 
   /**
    * Sets the target for the controller.
    */
   void setTarget(Input itarget) override {
-    logger->info("AsyncWrapper: Set target to " + std::to_string(itarget));
-    hasFirstTarget = true;
-    controller->setTarget(itarget);
-    lastTarget = itarget;
+    members->logger->info("AsyncWrapper: Set target to " + std::to_string(itarget));
+    members->hasFirstTarget = true;
+    members->controller->setTarget(itarget);
+    members->lastTarget = itarget;
   }
 
   /**
@@ -80,7 +73,7 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * @param ivalue the controller's output
    */
   void controllerSet(Input ivalue) override {
-    controller->controllerSet(ivalue);
+    members->controller->controllerSet(ivalue);
   }
 
   /**
@@ -89,21 +82,21 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * @return the last target
    */
   Input getTarget() override {
-    return controller->getTarget();
+    return members->controller->getTarget();
   }
 
   /**
    * Returns the last calculated output of the controller.
    */
   Output getOutput() const {
-    return controller->getOutput();
+    return members->controller->getOutput();
   }
 
   /**
    * Returns the last error of the controller.
    */
   Output getError() const override {
-    return controller->getError();
+    return members->controller->getError();
   }
 
   /**
@@ -115,7 +108,7 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * @return whether the controller is settled
    */
   bool isSettled() override {
-    return isDisabled() || controller->isSettled();
+    return isDisabled() || members->controller->isSettled();
   }
 
   /**
@@ -124,7 +117,7 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * @param isampleTime time between loops
    */
   void setSampleTime(QTime isampleTime) {
-    controller->setSampleTime(isampleTime);
+    members->controller->setSampleTime(isampleTime);
   }
 
   /**
@@ -134,7 +127,7 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * @param imin min output
    */
   void setOutputLimits(Output imax, Output imin) {
-    controller->setOutputLimits(imax, imin);
+    members->controller->setOutputLimits(imax, imin);
   }
 
   /**
@@ -143,7 +136,7 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * @return  the upper output bound
    */
   Output getMaxOutput() {
-    return controller->getMaxOutput();
+    return members->controller->getMaxOutput();
   }
 
   /**
@@ -152,7 +145,7 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * @return the lower output bound
    */
   Output getMinOutput() {
-    return controller->getMinOutput();
+    return members->controller->getMinOutput();
   }
 
   /**
@@ -160,9 +153,9 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * before.
    */
   void reset() override {
-    logger->info("AsyncWrapper: Reset");
-    controller->reset();
-    hasFirstTarget = false;
+    members->logger->info("AsyncWrapper: Reset");
+    members->controller->reset();
+    members->hasFirstTarget = false;
   }
 
   /**
@@ -170,8 +163,9 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * cause the controller to move to its last set target, unless it was reset in that time.
    */
   void flipDisable() override {
-    logger->info("AsyncWrapper: flipDisable " + std::to_string(!controller->isDisabled()));
-    controller->flipDisable();
+    members->logger->info("AsyncWrapper: flipDisable " +
+                          std::to_string(!members->controller->isDisabled()));
+    members->controller->flipDisable();
     resumeMovement();
   }
 
@@ -182,8 +176,8 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * @param iisDisabled whether the controller is disabled
    */
   void flipDisable(bool iisDisabled) override {
-    logger->info("AsyncWrapper: flipDisable " + std::to_string(iisDisabled));
-    controller->flipDisable(iisDisabled);
+    members->logger->info("AsyncWrapper: flipDisable " + std::to_string(iisDisabled));
+    members->controller->flipDisable(iisDisabled);
     resumeMovement();
   }
 
@@ -193,7 +187,7 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * @return whether the controller is currently disabled
    */
   bool isDisabled() const override {
-    return controller->isDisabled();
+    return members->controller->isDisabled();
   }
 
   /**
@@ -201,13 +195,13 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * implementation-dependent.
    */
   void waitUntilSettled() override {
-    logger->info("AsyncWrapper: Waiting to settle");
+    members->logger->info("AsyncWrapper: Waiting to settle");
 
     while (!isSettled()) {
-      loopRate->delayUntil(motorUpdateRate);
+      members->loopRate->delayUntil(motorUpdateRate);
     }
 
-    logger->info("AsyncWrapper: Done waiting to settle");
+    members->logger->info("AsyncWrapper: Done waiting to settle");
   }
 
   /**
@@ -215,22 +209,45 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
    * by the AsyncControllerFactory when making a new instance of this class.
    */
   void startThread() {
-    if (!task) {
-      task = new CrossplatformThread(trampoline, this);
+    if (!members->task) {
+      members->task = new CrossplatformThread(trampoline, this);
     }
   }
 
   protected:
-  Logger *logger;
-  std::shared_ptr<ControllerInput<Input>> input;
-  std::shared_ptr<ControllerOutput<Output>> output;
-  std::unique_ptr<IterativeController<Input, Output>> controller;
-  bool hasFirstTarget{false};
-  Input lastTarget;
-  std::unique_ptr<AbstractRate> loopRate;
-  std::unique_ptr<AbstractRate> settledRate;
-  std::atomic_bool dtorCalled{false};
-  CrossplatformThread *task{nullptr};
+  struct members_s {
+    members_s(Logger *ilogger,
+              const std::shared_ptr<ControllerInput<Input>> &iinput,
+              const std::shared_ptr<ControllerOutput<Output>> &ioutput,
+              std::unique_ptr<IterativeController<Input, Output>> icontroller,
+              std::unique_ptr<AbstractRate> iloopRate,
+              std::unique_ptr<AbstractRate> isettledRate,
+              const AsyncWrapper *iself)
+      : logger(ilogger),
+        input(iinput),
+        output(ioutput),
+        controller(std::move(icontroller)),
+        loopRate(std::move(iloopRate)),
+        settledRate(std::move(isettledRate)),
+        self(iself) {
+    }
+
+    Logger *logger;
+    std::shared_ptr<ControllerInput<Input>> input;
+    std::shared_ptr<ControllerOutput<Output>> output;
+    std::unique_ptr<IterativeController<Input, Output>> controller;
+    std::unique_ptr<AbstractRate> loopRate;
+    std::unique_ptr<AbstractRate> settledRate;
+
+    bool hasFirstTarget{false};
+    Input lastTarget;
+    std::atomic_bool dtorCalled{false};
+
+    CrossplatformThread *task{nullptr};
+    volatile const AsyncWrapper *self;
+  };
+
+  std::shared_ptr<members_s> members;
 
   static void trampoline(void *context) {
     if (context) {
@@ -239,12 +256,21 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
   }
 
   void loop() {
-    while (!dtorCalled.load(std::memory_order_acquire)) {
-      if (!isDisabled()) {
-        output->controllerSet(controller->step(input->controllerGet()));
+    while (!members->dtorCalled.load(std::memory_order_acquire)) {
+      if (members->self == nullptr) {
+        /**
+         * self will be null if task which created the parent object was deleted and the idle task
+         * freed its stack. For example, when the robot is running during opcontrol and is suddenly
+         * disabled.
+         */
+        return;
       }
 
-      loopRate->delayUntil(controller->getSampleTime());
+      if (!isDisabled()) {
+        members->output->controllerSet(members->controller->step(members->input->controllerGet()));
+      }
+
+      members->loopRate->delayUntil(members->controller->getSampleTime());
     }
   }
 
@@ -255,10 +281,10 @@ class AsyncWrapper : virtual public AsyncController<Input, Output> {
   virtual void resumeMovement() {
     if (isDisabled()) {
       // This will grab the output *when disabled*
-      output->controllerSet(controller->getOutput());
+      members->output->controllerSet(members->controller->getOutput());
     } else {
-      if (hasFirstTarget) {
-        setTarget(lastTarget);
+      if (members->hasFirstTarget) {
+        setTarget(members->lastTarget);
       }
     }
   }
