@@ -17,17 +17,19 @@ AsyncMotionProfileController::AsyncMotionProfileController(const TimeUtil &itime
                                                            std::shared_ptr<ChassisModel> imodel,
                                                            const ChassisScales &iscales,
                                                            AbstractMotor::GearsetRatioPair ipair)
-  : logger(Logger::instance()),
-    maxVel(imaxVel),
-    maxAccel(imaxAccel),
-    maxJerk(imaxJerk),
-    model(imodel),
-    scales(iscales),
-    pair(ipair),
-    timeUtil(itimeUtil) {
+  : members(std::make_shared<members_s>(Logger::instance(),
+                                        imaxVel,
+                                        imaxAccel,
+                                        imaxJerk,
+                                        imodel,
+                                        iscales,
+                                        ipair,
+                                        itimeUtil,
+                                        this)) {
   if (ipair.ratio == 0) {
-    logger->error("AsyncMotionProfileController: The gear ratio cannot be zero! Check if you are "
-                  "using integer division.");
+    members->logger->error(
+      "AsyncMotionProfileController: The gear ratio cannot be zero! Check if you are "
+      "using integer division.");
     throw std::invalid_argument(
       "AsyncMotionProfileController: The gear ratio cannot be zero! Check "
       "if you are using integer division.");
@@ -36,38 +38,25 @@ AsyncMotionProfileController::AsyncMotionProfileController(const TimeUtil &itime
 
 AsyncMotionProfileController::AsyncMotionProfileController(
   AsyncMotionProfileController &&other) noexcept
-  : logger(other.logger),
-    paths(std::move(other.paths)),
-    maxVel(other.maxVel),
-    maxAccel(other.maxAccel),
-    maxJerk(other.maxJerk),
-    model(std::move(other.model)),
-    scales(other.scales),
-    pair(other.pair),
-    timeUtil(std::move(other.timeUtil)),
-    currentPath(std::move(other.currentPath)),
-    isRunning(other.isRunning.load(std::memory_order_acquire)),
-    disabled(other.disabled.load(std::memory_order_acquire)),
-    dtorCalled(other.dtorCalled.load(std::memory_order_acquire)),
-    task(other.task) {
+  : members(std::move(other.members)) {
 }
 
 AsyncMotionProfileController::~AsyncMotionProfileController() {
-  dtorCalled.store(true, std::memory_order_release);
+  members->dtorCalled.store(true, std::memory_order_release);
 
-  for (auto &path : paths) {
+  for (auto &path : members->paths) {
     free(path.second.left);
     free(path.second.right);
   }
 
-  delete task;
+  delete members->task;
 }
 
 void AsyncMotionProfileController::generatePath(std::initializer_list<Point> iwaypoints,
                                                 const std::string &ipathId) {
   if (iwaypoints.size() == 0) {
     // No point in generating a path
-    logger->warn(
+    members->logger->warn(
       "AsyncMotionProfileController: Not generating a path because no waypoints were given.");
     return;
   }
@@ -80,15 +69,15 @@ void AsyncMotionProfileController::generatePath(std::initializer_list<Point> iwa
   }
 
   TrajectoryCandidate candidate;
-  logger->info("AsyncMotionProfileController: Preparing trajectory");
+  members->logger->info("AsyncMotionProfileController: Preparing trajectory");
   pathfinder_prepare(points.data(),
                      static_cast<int>(points.size()),
                      FIT_HERMITE_CUBIC,
                      PATHFINDER_SAMPLES_FAST,
                      0.001,
-                     maxVel,
-                     maxAccel,
-                     maxJerk,
+                     members->maxVel,
+                     members->maxAccel,
+                     members->maxJerk,
                      &candidate);
 
   const int length = candidate.length;
@@ -106,7 +95,7 @@ void AsyncMotionProfileController::generatePath(std::initializer_list<Point> iwa
                       pointToString(points.at(0)),
                       [&](std::string a, Waypoint b) { return a + ", " + pointToString(b); });
 
-    logger->error(message);
+    members->logger->error(message);
 
     if (candidate.laptr) {
       free(candidate.laptr);
@@ -124,7 +113,7 @@ void AsyncMotionProfileController::generatePath(std::initializer_list<Point> iwa
   if (trajectory == nullptr) {
     std::string message = "AsyncMotionProfileController: Could not allocate trajectory. The path "
                           "is probably impossible.";
-    logger->error(message);
+    members->logger->error(message);
 
     if (candidate.laptr) {
       free(candidate.laptr);
@@ -137,7 +126,7 @@ void AsyncMotionProfileController::generatePath(std::initializer_list<Point> iwa
     throw std::runtime_error(message);
   }
 
-  logger->info("AsyncMotionProfileController: Generating path");
+  members->logger->info("AsyncMotionProfileController: Generating path");
   pathfinder_generate(&candidate, trajectory);
 
   auto *leftTrajectory = (Segment *)malloc(sizeof(Segment) * length);
@@ -146,7 +135,7 @@ void AsyncMotionProfileController::generatePath(std::initializer_list<Point> iwa
   if (leftTrajectory == nullptr || rightTrajectory == nullptr) {
     std::string message = "AsyncMotionProfileController: Could not allocate left and/or right "
                           "trajectories. The path is probably impossible.";
-    logger->error(message);
+    members->logger->error(message);
 
     if (leftTrajectory) {
       free(leftTrajectory);
@@ -163,33 +152,36 @@ void AsyncMotionProfileController::generatePath(std::initializer_list<Point> iwa
     throw std::runtime_error(message);
   }
 
-  logger->info("AsyncMotionProfileController: Modifying for tank drive");
-  pathfinder_modify_tank(
-    trajectory, length, leftTrajectory, rightTrajectory, scales.wheelbaseWidth.convert(meter));
+  members->logger->info("AsyncMotionProfileController: Modifying for tank drive");
+  pathfinder_modify_tank(trajectory,
+                         length,
+                         leftTrajectory,
+                         rightTrajectory,
+                         members->scales.wheelbaseWidth.convert(meter));
 
   free(trajectory);
 
   // Free the old path before overwriting it
   removePath(ipathId);
 
-  paths.emplace(ipathId, TrajectoryPair{leftTrajectory, rightTrajectory, length});
-  logger->info("AsyncMotionProfileController: Completely done generating path");
-  logger->info("AsyncMotionProfileController: " + std::to_string(length));
+  members->paths.emplace(ipathId, TrajectoryPair{leftTrajectory, rightTrajectory, length});
+  members->logger->info("AsyncMotionProfileController: Completely done generating path");
+  members->logger->info("AsyncMotionProfileController: " + std::to_string(length));
 }
 
 void AsyncMotionProfileController::removePath(const std::string &ipathId) {
-  auto oldPath = paths.find(ipathId);
-  if (oldPath != paths.end()) {
+  auto oldPath = members->paths.find(ipathId);
+  if (oldPath != members->paths.end()) {
     free(oldPath->second.left);
     free(oldPath->second.right);
-    paths.erase(ipathId);
+    members->paths.erase(ipathId);
   }
 }
 
 std::vector<std::string> AsyncMotionProfileController::getPaths() {
   std::vector<std::string> keys;
 
-  for (const auto &path : paths) {
+  for (const auto &path : members->paths) {
     keys.push_back(path.first);
   }
 
@@ -197,8 +189,8 @@ std::vector<std::string> AsyncMotionProfileController::getPaths() {
 }
 
 void AsyncMotionProfileController::setTarget(std::string ipathId) {
-  currentPath = ipathId;
-  isRunning = true;
+  members->currentPath = ipathId;
+  members->isRunning = true;
 }
 
 void AsyncMotionProfileController::controllerSet(std::string ivalue) {
@@ -206,32 +198,33 @@ void AsyncMotionProfileController::controllerSet(std::string ivalue) {
 }
 
 std::string AsyncMotionProfileController::getTarget() {
-  return currentPath;
+  return members->currentPath;
 }
 
 void AsyncMotionProfileController::loop() {
-  auto rate = timeUtil.getRate();
+  auto rate = members->timeUtil.getRate();
 
-  while (!dtorCalled.load(std::memory_order_acquire)) {
-    if (isRunning.load(std::memory_order_acquire) && !isDisabled()) {
-      logger->info("AsyncMotionProfileController: Running with path: " + currentPath);
-      auto path = paths.find(currentPath);
+  while (!members->dtorCalled.load(std::memory_order_acquire)) {
+    if (members->isRunning.load(std::memory_order_acquire) && !isDisabled()) {
+      members->logger->info("AsyncMotionProfileController: Running with path: " +
+                            members->currentPath);
+      auto path = members->paths.find(members->currentPath);
 
-      if (path == paths.end()) {
-        logger->warn(
+      if (path == members->paths.end()) {
+        members->logger->warn(
           "AsyncMotionProfileController: Target was set to non-existent path with name: " +
-          currentPath);
+          members->currentPath);
       } else {
-        logger->debug("AsyncMotionProfileController: Path length is " +
-                      std::to_string(path->second.length));
+        members->logger->debug("AsyncMotionProfileController: Path length is " +
+                               std::to_string(path->second.length));
 
-        executeSinglePath(path->second, timeUtil.getRate());
-        model->stop();
+        executeSinglePath(path->second, members->timeUtil.getRate());
+        members->model->stop();
 
-        logger->info("AsyncMotionProfileController: Done moving");
+        members->logger->info("AsyncMotionProfileController: Done moving");
       }
 
-      isRunning.store(false, std::memory_order_release);
+      members->isRunning.store(false, std::memory_order_release);
     }
 
     rate->delayUntil(10_ms);
@@ -244,15 +237,15 @@ void AsyncMotionProfileController::executeSinglePath(const TrajectoryPair &path,
     const auto leftRPM = convertLinearToRotational(path.left[i].velocity * mps).convert(rpm);
     const auto rightRPM = convertLinearToRotational(path.right[i].velocity * mps).convert(rpm);
 
-    model->left(leftRPM / toUnderlyingType(pair.internalGearset));
-    model->right(rightRPM / toUnderlyingType(pair.internalGearset));
+    members->model->left(leftRPM / toUnderlyingType(members->pair.internalGearset));
+    members->model->right(rightRPM / toUnderlyingType(members->pair.internalGearset));
 
     rate->delayUntil(1_ms);
   }
 }
 
 QAngularSpeed AsyncMotionProfileController::convertLinearToRotational(QSpeed linear) const {
-  return (linear * (360_deg / (scales.wheelDiameter * 1_pi))) * pair.ratio;
+  return (linear * (360_deg / (members->scales.wheelDiameter * 1_pi))) * members->pair.ratio;
 }
 
 void AsyncMotionProfileController::trampoline(void *context) {
@@ -262,14 +255,14 @@ void AsyncMotionProfileController::trampoline(void *context) {
 }
 
 void AsyncMotionProfileController::waitUntilSettled() {
-  logger->info("AsyncMotionProfileController: Waiting to settle");
+  members->logger->info("AsyncMotionProfileController: Waiting to settle");
 
-  auto rate = timeUtil.getRate();
+  auto rate = members->timeUtil.getRate();
   while (!isSettled()) {
     rate->delayUntil(10_ms);
   }
 
-  logger->info("AsyncMotionProfileController: Done waiting to settle");
+  members->logger->info("AsyncMotionProfileController: Done waiting to settle");
 }
 
 Point AsyncMotionProfileController::getError() const {
@@ -277,15 +270,15 @@ Point AsyncMotionProfileController::getError() const {
 }
 
 bool AsyncMotionProfileController::isSettled() {
-  return isDisabled() || !isRunning.load(std::memory_order_acquire);
+  return isDisabled() || !members->isRunning.load(std::memory_order_acquire);
 }
 
 void AsyncMotionProfileController::reset() {
   // Interrupt executeSinglePath() by disabling the controller
   flipDisable(true);
 
-  auto rate = timeUtil.getRate();
-  while (isRunning.load(std::memory_order_acquire)) {
+  auto rate = members->timeUtil.getRate();
+  while (members->isRunning.load(std::memory_order_acquire)) {
     rate->delayUntil(1_ms);
   }
 
@@ -293,23 +286,23 @@ void AsyncMotionProfileController::reset() {
 }
 
 void AsyncMotionProfileController::flipDisable() {
-  flipDisable(!disabled.load(std::memory_order_acquire));
+  flipDisable(!members->disabled.load(std::memory_order_acquire));
 }
 
 void AsyncMotionProfileController::flipDisable(const bool iisDisabled) {
-  logger->info("AsyncMotionProfileController: flipDisable " + std::to_string(iisDisabled));
-  disabled.store(iisDisabled, std::memory_order_release);
+  members->logger->info("AsyncMotionProfileController: flipDisable " + std::to_string(iisDisabled));
+  members->disabled.store(iisDisabled, std::memory_order_release);
   // loop() will stop the chassis when executeSinglePath() is done
   // the default implementation of executeSinglePath() breaks when disabled
 }
 
 bool AsyncMotionProfileController::isDisabled() const {
-  return disabled.load(std::memory_order_acquire);
+  return members->disabled.load(std::memory_order_acquire);
 }
 
 void AsyncMotionProfileController::startThread() {
-  if (!task) {
-    task = new CrossplatformThread(trampoline, this);
+  if (!members->task) {
+    members->task = new CrossplatformThread(trampoline, this);
   }
 }
 } // namespace okapi

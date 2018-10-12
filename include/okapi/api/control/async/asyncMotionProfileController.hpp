@@ -170,21 +170,48 @@ class AsyncMotionProfileController : public AsyncPositionController<std::string,
     int length;
   };
 
-  Logger *logger;
-  std::map<std::string, TrajectoryPair> paths{};
-  double maxVel{0};
-  double maxAccel{0};
-  double maxJerk{0};
-  std::shared_ptr<ChassisModel> model;
-  ChassisScales scales;
-  AbstractMotor::GearsetRatioPair pair;
-  TimeUtil timeUtil;
+  struct members_s {
+    members_s(Logger *ilogger,
+              const double imaxVel,
+              const double imaxAccel,
+              const double imaxJerk,
+              const std::shared_ptr<ChassisModel> &imodel,
+              const ChassisScales &iscales,
+              const AbstractMotor::GearsetRatioPair &ipair,
+              const TimeUtil &itimeUtil,
+              const AsyncMotionProfileController *iself)
+      : logger(ilogger),
+        maxVel(imaxVel),
+        maxAccel(imaxAccel),
+        maxJerk(imaxJerk),
+        model(imodel),
+        scales(iscales),
+        pair(ipair),
+        timeUtil(itimeUtil),
+        self(iself) {
+    }
 
-  std::string currentPath{""};
-  std::atomic_bool isRunning{false};
-  std::atomic_bool disabled{false};
-  std::atomic_bool dtorCalled{false};
-  CrossplatformThread *task{nullptr};
+    Logger *logger;
+    double maxVel;
+    double maxAccel;
+    double maxJerk;
+    std::shared_ptr<ChassisModel> model;
+    ChassisScales scales;
+    AbstractMotor::GearsetRatioPair pair;
+    TimeUtil timeUtil;
+
+    std::map<std::string, TrajectoryPair> paths{};
+    std::string currentPath{""};
+
+    std::atomic_bool isRunning{false};
+    std::atomic_bool disabled{false};
+    std::atomic_bool dtorCalled{false};
+
+    CrossplatformThread *task{nullptr};
+    volatile const AsyncMotionProfileController *self;
+  };
+
+  std::shared_ptr<members_s> members;
 
   static void trampoline(void *context);
   void loop();
